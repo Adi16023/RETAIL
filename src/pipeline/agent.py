@@ -32,48 +32,90 @@ and every number you see was computed there, not by you. You must never invent, 
 a number yourself; only cite facts that appear in the evidence pack or in a tool result.
 
 Your job: given one account's evidence pack, decide whether it shows healthy behaviour, temporary \
-variation, or structural revenue leakage — and which categories are responsible if so.
+variation, or structural revenue leakage — where the value is leaking from if so, and whether the \
+evidence supports any confident call at all.
 
-TEMPORARY VS STRUCTURAL — apply these criteria explicitly, not vibes:
-- Structural signals: a sustained (multi-period) category decline past a change-point with no \
-seasonal precedent; replacement by lower-value substitutes; shrinking order sizes in the affected \
-category; a change-point that has not recovered (recovered: false) and has persisted several months.
-- Temporary signals: seasonal precedent in prior history for the same calendar period; a single \
-anomalous period; a change that has already recovered (recovered: true); an isolated one-off event \
-(e.g. one unusually large historical order) rather than a sustained shift.
-- The evidence pack's `seasonal_precedent` field is deliberately conservative: it only ever says \
-"confirmed" when at least 2 prior occurrences of the same calendar month back it up, so it will \
-often say "insufficient_history" rather than guess when history is short — that is not the same as \
-"no seasonality." If seasonality could plausibly explain a decline and the field says \
-insufficient_history or not_present, call get_category_seasonal_breakdown yourself and judge the raw \
-calendar-month history directly — with under ~2 years of data you may see a plausible seasonal \
-pattern the deterministic check couldn't yet confirm on its own stricter standard.
-- CATEGORY MATERIALITY: a change-point in a category that was only a small share of this account's \
-baseline revenue (see category_mix.baseline_share) is much weaker evidence of meaningful leakage than \
-one in a major category, even if the percentage decline looks large — a low-revenue category is also \
-where random noise most easily crosses a decline threshold by chance. Do not build a confident \
-structural verdict primarily around a single low-share category's change-point; either look for \
-corroborating evidence (does total revenue or a high-value category also move, does the pattern \
-repeat across categories), or reflect the weak materiality in lower confidence.
-- ORDER BEHAVIOUR IS ITS OWN SIGNAL, not just a modifier of category-level findings: check \
-order_behavior (basket_width_pct_change, order_frequency_pct_change, aov_pct_change) directly. A \
-sustained drop in basket width while frequency holds roughly steady is itself structural leakage — \
-smaller baskets, not fewer orders — even when no single category shows a strong change-point. Don't \
-only look at category_changes and conclude there's nothing there; a real shift can show up in how \
-orders are shaped rather than in any one category's revenue.
+MOST ACCOUNTS THAT LOOK LIKE LEAKS ARE NOT LEAKS. In a realistic book, the majority of accounts \
+showing a scary-looking recent number are seasonal, recovered, growing, inflated by a past bulk \
+order, missing a month of data, or drifting within their normal band. Flagging everything is not \
+caution — it is the most common failure mode, and it is wrong far more often than it is right. \
+Equally, a genuinely leaking account can look perfectly healthy at the topline. Your value is the \
+discrimination, not the alarm.
+
+CHECK EVERY DIMENSION, NOT JUST REVENUE. `analysis_dimensions` tells you which of these the input \
+file could actually support — if a dimension is false there, you did not measure it, and you must \
+say so rather than imply it was fine:
+- revenue_decline: graded material_decline / mild_drift / stable / growth. `mild_drift` is NOT a \
+leak on its own; it is the normal band.
+- margin: an account can hold revenue perfectly flat and still bleed value. `erosion_detected` at \
+flat revenue is one of the most important findings you can make, and revenue-only reasoning misses \
+it completely. Always look at margin before concluding an account is healthy.
+- discount: `creep_detected` means the same goods are being sold at a steadily deeper discount. \
+Volume, mix and order pattern can all look untouched while the money leaves through the price.
+- tier_mix: `downgrade_detected` (value sliding out of High tier into Low) at flat revenue is the \
+classic hidden leak. `premiumisation_detected` is the exact opposite and is GOOD NEWS.
+- order_pattern: `fragmentation_detected` (more orders, each smaller) is an early multi-sourcing \
+signal in its own right, even with no category change-point and near-flat revenue.
+- category_changes: a category with `defected: true` has stopped completely and stayed stopped — \
+name that category specifically.
+
+DIRECTION IS NOT MAGNITUDE. Rising margin, rising high-tier share, and rising revenue are all \
+positive. An account buying fewer units but trading UP to premium lines has flat revenue, higher \
+margin and a higher high-tier share — that is a healthy account, and flagging it is a serious \
+error. Never treat "the mix changed" as automatically bad; read which way it moved.
+
+RULE OUT THE INNOCENT EXPLANATIONS BEFORE FLAGGING:
+- `seasonality.status == "confirmed"` means this same dip happened in the same calendar window a \
+year earlier (the echoing months are listed). That is strong evidence the recent dip is seasonal, \
+not structural. Cite the prior-year months by name.
+- `dip_episodes` lists every below-normal run in the history with whether it recovered. A dip that \
+`recovered` months ago is a resolved incident, not a current leak. Only an `is_ongoing` episode or \
+a non-recovered change-point is a live problem.
+- `data_quality.gaps.months_with_no_orders`: a month with no orders is a hole in the data, not a \
+month of zero trading. It drags trailing averages down by itself. Do not read it as a decline.
+- `data_quality.outlier_months`: a one-off stock-up month inflates whatever window it lands in. The \
+ordinary months after it are a return to normal, not a decline.
+- `data_quality.returns`: credit notes are already netted into every figure. A return is not \
+leakage.
+- An account manager change (`account_manager_changed`) is a correlation. It is never, by itself, \
+evidence of a cause. You may note it as context; do not attribute a leak to it.
+
+ATTRIBUTION HONESTY. Name a category only when a category actually explains the loss. If the \
+decline is broad-based across the whole book (no single category defected, no single category \
+dominates the change), say that it is whole-account disengagement and leave attributed_categories \
+EMPTY. Inventing a scapegoat category for a diffuse decline is worse than naming none: it sends \
+the account team after the wrong thing. Likewise, if the leak is in margin or discount rather than \
+in any category's volume, put the dimension in leak_dimensions and leave the category list empty \
+unless a specific category is genuinely responsible.
+
+MATERIALITY: a change-point in a category that was only a small share of this account's baseline \
+revenue (see category_mix.baseline_share) is much weaker evidence than one in a major category, \
+even if the percentage decline looks large — a low-revenue category is where random noise most \
+easily crosses a threshold by chance. Do not build a confident verdict on a single low-share \
+category; find corroborating evidence or lower your confidence.
+
+SEASONALITY WITH SHORT HISTORY: `seasonal_precedent` on a category is deliberately strict — it \
+needs 2+ prior occurrences of the same calendar month, which takes about three years, so it will \
+often say "insufficient_history". That is not the same as "no seasonality". `prior_year_echo` and \
+the account-level `seasonality` field are the checks that two years of history can support. If \
+seasonality is still plausible and unresolved, call get_category_seasonal_breakdown or \
+get_tier_monthly_series and judge the calendar history yourself.
 
 DEFER WHEN THE EVIDENCE DOESN'T SUPPORT A CLEAN ANSWER. This is the most important instruction in \
-this prompt. If history is too short (see data_sufficiency), the shift could plausibly be seasonal \
-but you can't confirm it, or the signals conflict, set defer=true, use low confidence, and name in \
-data_needed_if_deferring exactly what data would resolve it. A deferred, low-confidence, well- \
-reasoned answer is scored HIGHER than a forced confident one — do not manufacture a verdict to \
-sound decisive.
+this prompt. If history is too short (see data_sufficiency — flags like history_too_short_for_baseline \
+or cannot_check_prior_year_seasonality), the shift could plausibly be seasonal but you can't \
+confirm it, or the signals conflict, set defer=true, use low confidence, and name in \
+data_needed_if_deferring exactly what data would resolve it. An account with only a few months of \
+history genuinely cannot be classified temporary vs structural — no amount of reasoning fixes \
+missing months, and guessing is the failure. A deferred, low-confidence, well-reasoned answer is \
+scored HIGHER than a forced confident one — do not manufacture a verdict to sound decisive.
 
 You may call the drill-down tools as many times as you need before answering. When you have enough \
 evidence, call submit_verdict exactly once with your final structured answer. Every entry in \
 cited_facts must reference a specific fact from the evidence pack or a tool result (e.g. \
-"Industrial Equipment: change-point 2025-05, 100% decline, recovered=false, sustained 7 months") — \
-not a vague restatement."""
+"Diagnostic Equipment: defected, 10 consecutive months at zero since 2025-11, prior_year_echo \
+not_present" or "margin 32.2% -> 19.9% (-12.3pp) with revenue flat at +2.5%") — not a vague \
+restatement."""
 
 
 def _tool_get_category_monthly_series(df: pd.DataFrame, account_id: str, category: str) -> dict:
@@ -99,6 +141,72 @@ def _tool_get_product_changes(df: pd.DataFrame, account_id: str, category: str |
     if category:
         changes = [c for c in changes if c["category"] == category]
     return changes
+
+
+def _tool_get_monthly_economics(df: pd.DataFrame, account_id: str) -> dict:
+    """Month-by-month revenue, margin, margin rate and average discount side
+    by side — the view that separates a volume story from a price story."""
+    acc_df = df[df["account_id"] == account_id].copy()
+    months = full_month_index(acc_df)
+    acc_df["month"] = acc_df["date"].dt.to_period("M")
+
+    revenue = acc_df.groupby("month")["revenue"].sum().reindex(months, fill_value=0.0)
+    has_margin = "margin" in acc_df.columns and acc_df["margin"].notna().any()
+    margin = (
+        acc_df.groupby("month")["margin"].sum().reindex(months, fill_value=0.0)
+        if has_margin else None
+    )
+
+    discount = None
+    if "discount_pct" in acc_df.columns and acc_df["discount_pct"].notna().any():
+        sales = acc_df[acc_df.get("is_return", 0) != 1]
+        weight = (
+            (sales["list_price"] * sales["quantity"]).abs()
+            if "list_price" in sales.columns and sales["list_price"].notna().any()
+            else sales["revenue"].abs()
+        )
+        weighted = sales.assign(_w=weight, _wd=sales["discount_pct"] * weight)
+        grouped = weighted.groupby("month")[["_w", "_wd"]].sum()
+        discount = (grouped["_wd"] / grouped["_w"]).reindex(months)
+
+    out = {}
+    for month in months:
+        row = {"revenue": round(float(revenue.loc[month]), 2)}
+        if margin is not None:
+            month_margin = float(margin.loc[month])
+            row["margin"] = round(month_margin, 2)
+            row["margin_pct"] = (
+                round(month_margin / float(revenue.loc[month]), 4)
+                if float(revenue.loc[month]) else None
+            )
+        if discount is not None:
+            value = discount.loc[month]
+            row["avg_discount_pct"] = None if pd.isna(value) else round(float(value), 4)
+        out[str(month)] = row
+    return out
+
+
+def _tool_get_tier_monthly_series(df: pd.DataFrame, account_id: str) -> dict:
+    """Monthly revenue split by product value tier, plus the High-tier share
+    of each month — for judging a mix shift's direction directly."""
+    acc_df = df[df["account_id"] == account_id].copy()
+    if "tier" not in acc_df.columns or not acc_df["tier"].notna().any():
+        return {"error": "This dataset has no product value-tier column; tier mix cannot be analysed."}
+
+    months = full_month_index(acc_df)
+    acc_df["month"] = acc_df["date"].dt.to_period("M")
+    pivot = (
+        acc_df.pivot_table(index="month", columns="tier", values="revenue", aggfunc="sum")
+        .reindex(months)
+        .fillna(0.0)
+    )
+    out = {}
+    for month in months:
+        row = {tier: round(float(pivot.loc[month, tier]), 2) for tier in pivot.columns}
+        total = sum(row.values())
+        row["high_tier_share"] = round(row.get("High", 0.0) / total, 4) if total else None
+        out[str(month)] = row
+    return out
 
 
 DRILLDOWN_TOOLS = [
@@ -135,6 +243,28 @@ DRILLDOWN_TOOLS = [
         },
         "strict": True,
     },
+    {
+        "name": "get_monthly_economics",
+        "description": "Month-by-month revenue, margin, margin rate and average discount for this account, side by side. Use this to separate a volume story from a price story — e.g. to see whether flat revenue is being held up while margin rate falls, or to trace when a discount started creeping.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": False,
+        },
+        "strict": True,
+    },
+    {
+        "name": "get_tier_monthly_series",
+        "description": "Monthly revenue split by product value tier (High/Mid/Low) with each month's High-tier share. Use this to judge the DIRECTION of a mix shift yourself — value moving out of High tier is a downgrade, value moving into it is premiumisation.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": False,
+        },
+        "strict": True,
+    },
 ]
 
 SUBMIT_VERDICT_TOOL = {
@@ -153,10 +283,19 @@ SUBMIT_VERDICT_TOOL = {
             },
             "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
             "defer": {"type": "boolean"},
+            "leak_dimensions": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "enum": ["revenue", "margin", "discount", "category_mix", "tier_mix",
+                             "order_pattern"],
+                },
+                "description": "Which dimension(s) the value is actually leaking through. Empty if healthy or deferring. A margin or discount leak at flat revenue must say so here.",
+            },
             "attributed_categories": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "Categories responsible for the leakage, empty if healthy or deferring.",
+                "description": "Categories responsible for the leakage. Empty if healthy, deferring, or if the decline is broad-based with no single category responsible — do not name a scapegoat category for a diffuse decline.",
             },
             "cited_facts": {
                 "type": "array",
@@ -176,7 +315,7 @@ SUBMIT_VERDICT_TOOL = {
         },
         "required": [
             "verdict", "temporary_or_structural", "confidence", "defer",
-            "attributed_categories", "cited_facts", "narrative",
+            "leak_dimensions", "attributed_categories", "cited_facts", "narrative",
             "recommended_actions", "data_needed_if_deferring",
         ],
         "additionalProperties": False,
@@ -198,6 +337,10 @@ def _execute_tool(df: pd.DataFrame, account_id: str, name: str, tool_input: dict
         return _tool_get_category_seasonal_breakdown(df, account_id, tool_input["category"])
     if name == "get_product_changes":
         return _tool_get_product_changes(df, account_id, tool_input.get("category"))
+    if name == "get_monthly_economics":
+        return _tool_get_monthly_economics(df, account_id)
+    if name == "get_tier_monthly_series":
+        return _tool_get_tier_monthly_series(df, account_id)
     raise AgentError(f"Unknown tool requested by model: {name}")
 
 

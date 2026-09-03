@@ -9,10 +9,18 @@ historical order — see data.md archetype 4); recent-window aggregates use
 a sum/months rate rather than a median, since a median over only a few
 noisy months doesn't average out sampling variance the way a rate over
 more orders does.
+
+Revenue is not the only baseline. Two of the dataset's leak archetypes
+(hidden mix collapse, discount creep) hold revenue flat and bleed value
+through margin instead, so this stage profiles four dimensions in parallel
+where the columns allow it — revenue, margin, discount, and value-tier mix.
+Each profile degrades to None rather than guessing when its source column
+is absent; see ingest.analysis_dimensions.
 """
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from .changepoint import (
@@ -22,6 +30,7 @@ from .changepoint import (
     rolling,
     scan_change_point,
 )
+from .ingest import TIER_ORDER
 
 HIGH_VALUE_CUMULATIVE_SHARE = 0.70
 
@@ -118,10 +127,184 @@ def overall_revenue(df: pd.DataFrame) -> dict:
     }
 
 
+def _sales_lines(df: pd.DataFrame) -> pd.DataFrame:
+    """Rows excluding return/credit lines.
+
+    Returns still NET into revenue and margin totals — that is what a credit
+    note means financially. They are excluded only from *behavioural*
+    statistics (order frequency, basket width, AOV), where a standalone
+    credit note is not an order and counting it as one would fake a
+    frequency rise and a basket-width collapse in the same breath.
+    """
+    if "is_return" not in df.columns:
+        return df
+    return df[df["is_return"] != 1]
+
+
+def margin_profile(df: pd.DataFrame) -> dict | None:
+    """Margin rate and absolute margin, baseline vs recent.
+
+    Margin percentage is a RATIO, so it is smoothed by rolling the numerator
+    and denominator separately and dividing after — rolling the ratio itself
+    would weight a quiet month the same as a heavy one.
+    """
+    if "margin" not in df.columns or not df["margin"].notna().any():
+        return None
+
+    months = full_month_index(df)
+    baseline_months, recent_months = _split_recent_baseline(months)
+
+    d = df.copy()
+    d["month"] = d["date"].dt.to_period("M")
+    monthly_margin = d.groupby("month")["margin"].sum().reindex(months, fill_value=0.0)
+    monthly_revenue = d.groupby("month")["revenue"].sum().reindex(months, fill_value=0.0)
+
+    def rate_for(window: pd.PeriodIndex) -> float | None:
+        if len(window) == 0:
+            return None
+        revenue = float(monthly_revenue.loc[window].sum())
+        if revenue == 0:
+            return None
+        return round(float(monthly_margin.loc[window].sum()) / revenue, 4)
+
+    def monthly_rate(window: pd.PeriodIndex) -> float | None:
+        if len(window) == 0:
+            return None
+        return round(float(monthly_margin.loc[window].sum()) / len(window), 2)
+
+    baseline_pct, recent_pct = rate_for(baseline_months), rate_for(recent_months)
+    change_pp = (
+        round((recent_pct - baseline_pct) * 100, 2)
+        if baseline_pct is not None and recent_pct is not None else None
+    )
+
+    smoothed_pct = (rolling(monthly_margin) / rolling(monthly_revenue)).replace(
+        [np.inf, -np.inf], np.nan
+    )
+
+    return {
+        "baseline_margin_pct": baseline_pct,
+        "recent_margin_pct": recent_pct,
+        "margin_pct_change_pp": change_pp,
+        "baseline_monthly_margin": monthly_rate(baseline_months),
+        "recent_monthly_margin": monthly_rate(recent_months),
+        "monthly_margin_pct_series": {
+            str(m): (None if pd.isna(v) else round(float(v), 4)) for m, v in smoothed_pct.items()
+        },
+    }
+
+
+def discount_profile(df: pd.DataFrame) -> dict | None:
+    """Revenue-weighted average discount, baseline vs recent.
+
+    Weighted by gross list value (list_price x quantity) where available, so
+    that a discount on a large high-value line counts for more than the same
+    discount on one cheap line — an unweighted mean of discount_pct would let
+    a handful of small orders mask creep on the lines that matter. Falls back
+    to |revenue| weighting when list_price is absent.
+    """
+    if "discount_pct" not in df.columns or not df["discount_pct"].notna().any():
+        return None
+
+    months = full_month_index(df)
+    baseline_months, recent_months = _split_recent_baseline(months)
+
+    d = _sales_lines(df).copy()
+    d = d[d["discount_pct"].notna()]
+    if d.empty:
+        return None
+    d["month"] = d["date"].dt.to_period("M")
+
+    if "list_price" in d.columns and d["list_price"].notna().any() and "quantity" in d.columns:
+        d["weight"] = (d["list_price"] * d["quantity"]).abs()
+    else:
+        d["weight"] = d["revenue"].abs()
+    d.loc[d["weight"].isna() | (d["weight"] <= 0), "weight"] = 1.0
+    d["weighted"] = d["discount_pct"] * d["weight"]
+
+    def avg_for(window: pd.PeriodIndex) -> float | None:
+        sub = d[d["month"].isin(window)]
+        total_weight = float(sub["weight"].sum())
+        if len(window) == 0 or total_weight == 0:
+            return None
+        return round(float(sub["weighted"].sum()) / total_weight, 4)
+
+    baseline_disc, recent_disc = avg_for(baseline_months), avg_for(recent_months)
+    change_pp = (
+        round((recent_disc - baseline_disc) * 100, 2)
+        if baseline_disc is not None and recent_disc is not None else None
+    )
+
+    by_month = d.groupby("month").apply(
+        lambda g: float(g["weighted"].sum()) / float(g["weight"].sum())
+        if float(g["weight"].sum()) else float("nan"),
+        include_groups=False,
+    ).reindex(months)
+
+    return {
+        "baseline_avg_discount_pct": baseline_disc,
+        "recent_avg_discount_pct": recent_disc,
+        "discount_pct_change_pp": change_pp,
+        "monthly_avg_discount_series": {
+            str(m): (None if pd.isna(v) else round(float(v), 4)) for m, v in by_month.items()
+        },
+    }
+
+
+def tier_mix(df: pd.DataFrame) -> dict | None:
+    """Revenue share by product value tier, baseline vs recent.
+
+    This is the decomposition that separates the dataset's two opposite mix
+    stories: value sliding out of High into Low at flat revenue (leakage),
+    versus sliding INTO High at flat revenue (premiumisation, not leakage).
+    Direction of the high-tier share change is the whole signal, so it is
+    reported signed and never as a magnitude.
+    """
+    if "tier" not in df.columns or not df["tier"].notna().any():
+        return None
+
+    months = full_month_index(df)
+    baseline_months, recent_months = _split_recent_baseline(months)
+
+    d = df[df["tier"].notna()].copy()
+    d["month"] = d["date"].dt.to_period("M")
+
+    def shares_for(window: pd.PeriodIndex) -> dict:
+        sub = d[d["month"].isin(window)]
+        total = float(sub["revenue"].sum())
+        if len(window) == 0 or total == 0:
+            return {}
+        by_tier = sub.groupby("tier")["revenue"].sum()
+        return {t: round(float(by_tier.get(t, 0.0)) / total, 4) for t in TIER_ORDER}
+
+    baseline_shares, recent_shares = shares_for(baseline_months), shares_for(recent_months)
+    high_change_pp = (
+        round((recent_shares.get("High", 0.0) - baseline_shares.get("High", 0.0)) * 100, 2)
+        if baseline_shares and recent_shares else None
+    )
+
+    monthly_high = d[d["tier"] == "High"].groupby("month")["revenue"].sum().reindex(months, fill_value=0.0)
+    monthly_total = d.groupby("month")["revenue"].sum().reindex(months, fill_value=0.0)
+    smoothed_high_share = (rolling(monthly_high) / rolling(monthly_total)).replace(
+        [np.inf, -np.inf], np.nan
+    )
+
+    return {
+        "baseline_share_by_tier": baseline_shares,
+        "recent_share_by_tier": recent_shares,
+        "high_tier_share_change_pp": high_change_pp,
+        "monthly_high_tier_share_series": {
+            str(m): (None if pd.isna(v) else round(float(v), 4))
+            for m, v in smoothed_high_share.items()
+        },
+    }
+
+
 def order_behavior(df: pd.DataFrame) -> dict:
     months = full_month_index(df)
     baseline_months, recent_months = _split_recent_baseline(months)
 
+    df = _sales_lines(df)
     orders = df.drop_duplicates("order_id").copy()
     orders["month"] = orders["date"].dt.to_period("M")
     basket_width = df.groupby("order_id")["product_id"].nunique()
@@ -134,11 +317,20 @@ def order_behavior(df: pd.DataFrame) -> dict:
         return round(n_orders / len(window), 2)
 
     def stat_for(window: pd.PeriodIndex, series: pd.Series) -> float | None:
+        """Window MEAN, not median.
+
+        Basket width is a small integer (typically 2-6 lines), so its median
+        moves only in whole steps: a healthy account drifting from 4.4 to 3.6
+        lines per order reads as a flat -25% or -50% cliff, and two genuinely
+        different accounts collapse onto the same number. The mean over every
+        order in the window tracks the underlying drift smoothly, which is
+        what a gradual fragmentation signal actually needs.
+        """
         if len(window) == 0:
             return None
         oids = orders.loc[orders["month"].isin(window), "order_id"]
         vals = series.loc[series.index.intersection(oids)]
-        return float(vals.median()) if len(vals) else None
+        return round(float(vals.mean()), 2) if len(vals) else None
 
     def pct(a, b):
         if a is None or b is None or a == 0:
@@ -169,6 +361,9 @@ def build_baseline(df: pd.DataFrame, account_id: str) -> dict:
     return {
         "account_id": account_id,
         "overall_revenue": overall_revenue(acc_df),
+        "margin_profile": margin_profile(acc_df),
+        "discount_profile": discount_profile(acc_df),
         "category_mix": category_mix(acc_df),
+        "tier_mix": tier_mix(acc_df),
         "order_behavior": order_behavior(acc_df),
     }

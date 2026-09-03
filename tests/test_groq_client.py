@@ -24,8 +24,7 @@ from pipeline.groq_client import (
 )
 from pipeline.ingest import ingest
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-GENERATED_CSV = REPO_ROOT / "synthetic_data" / "transactions.csv"
+from datasets import DEFECTED_ACCOUNT, DEFECTED_CATEGORY, MERIDIAN_CSV
 
 
 def groq_tool_call(call_id: str, name: str, arguments: dict):
@@ -122,13 +121,14 @@ def test_investigate_runs_unchanged_through_groq_shim():
     against a Groq-shaped client instead of an Anthropic one."""
     verdict_input = {
         "verdict": "leakage_detected", "temporary_or_structural": "structural",
-        "confidence": "high", "defer": False, "attributed_categories": ["Industrial Equipment"],
+        "confidence": "high", "defer": False, "leak_dimensions": ["category_mix"],
+        "attributed_categories": [DEFECTED_CATEGORY],
         "cited_facts": ["fact"], "narrative": "narrative", "recommended_actions": [],
         "data_needed_if_deferring": [],
     }
     fake_groq = FakeGroqClient([
         groq_response(
-            tool_calls=[groq_tool_call("call_a", "get_category_monthly_series", {"category": "Industrial Equipment"})],
+            tool_calls=[groq_tool_call("call_a", "get_category_monthly_series", {"category": DEFECTED_CATEGORY})],
             finish_reason="tool_calls",
         ),
         groq_response(
@@ -138,9 +138,9 @@ def test_investigate_runs_unchanged_through_groq_shim():
     ])
     client = GroqBackedTestClient(fake_groq)
 
-    df, _ = ingest(str(GENERATED_CSV))
-    pack = build_evidence_pack(df, "ACC-0001")
-    result = investigate(client, df, "ACC-0001", pack, model="claude-opus-5")
+    df, _ = ingest(str(MERIDIAN_CSV))
+    pack = build_evidence_pack(df, DEFECTED_ACCOUNT)
+    result = investigate(client, df, DEFECTED_ACCOUNT, pack, model="claude-opus-5")
 
     assert result == verdict_input
     # model substitution: an Anthropic model ID must not be sent to Groq

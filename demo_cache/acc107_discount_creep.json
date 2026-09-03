@@ -1,0 +1,80 @@
+{
+  "account_id": "ACC-107",
+  "account_name": "Ashford Retail",
+  "verdict": "leakage_detected",
+  "temporary_or_structural": "structural",
+  "leak_dimensions": [
+    "discount",
+    "margin"
+  ],
+  "confidence": "high",
+  "defer": false,
+  "narrative": "Volume and product mix on this account are unchanged, and revenue is flat. The money is leaving through the price: average discount has roughly doubled, and margin has halved with it. A revenue-only review would show nothing wrong here.",
+  "attributed_categories": [],
+  "cited_evidence": [
+    "Average discount rose 12.5% -> 23.4% (+10.8pp) between baseline and recent windows",
+    "Margin rate fell 22.6% -> 11.5% (-11.1pp)",
+    "Revenue is flat (-0.9%) and tier mix is stable \u2014 volume and mix are unchanged"
+  ],
+  "recommended_actions": [
+    "Review the discount authority applied to this account over the last two quarters.",
+    "Re-baseline pricing at renewal; the current discount level was never a deliberate decision."
+  ],
+  "data_needed_if_deferring": [],
+  "financial_impact": {
+    "per_category": [],
+    "account_level_revenue_impact": null,
+    "margin_impact": {
+      "monthly_margin_at_risk": 22877.76,
+      "annualized_margin_at_risk": 274533.12,
+      "margin_pct_erosion_pp": -11.08,
+      "baseline_margin_pct": 0.2256,
+      "recent_margin_pct": 0.1148,
+      "baseline_monthly_margin": 47986.29,
+      "recent_monthly_margin": 23698.15,
+      "pct_of_baseline_monthly_margin_at_risk": 0.4768,
+      "basis": "Current monthly revenue valued at the baseline margin rate, minus the margin actually earned. Isolates the rate change from any change in volume."
+    },
+    "total_monthly_revenue_at_risk": 0,
+    "total_historical_value_lost": 0,
+    "pct_of_baseline_monthly_revenue_at_risk": 0.0,
+    "pct_of_baseline_monthly_margin_at_risk": 0.4768,
+    "overall_severity_pct_of_baseline": 0.4768
+  },
+  "prioritization": {
+    "priority": "High",
+    "magnitude_tier": "high",
+    "confidence_tier": "high",
+    "severity_pct_of_baseline": 0.4768,
+    "reason": "47.7% of baseline monthly gross margin at risk, high confidence.",
+    "churn_risk_projection": {
+      "monthly_run_rate_loss": 0.0,
+      "projected_12_month_loss_if_unaddressed": 0.0,
+      "monthly_margin_loss": 22877.76,
+      "projected_12_month_margin_loss_if_unaddressed": 274533.12,
+      "basis": "Assumes the current monthly loss rate persists unchanged for 12 months \u2014 not a forecast of further deterioration, just the cost of inaction at today's rate. Revenue and margin figures overlap and must not be added together."
+    }
+  },
+  "data_sufficiency": {
+    "score": 1.0,
+    "label": "sufficient",
+    "flags": [],
+    "history_months": 22.9,
+    "order_count": 36,
+    "category_count": 8
+  },
+  "analysis_dimensions": {
+    "revenue": true,
+    "margin": true,
+    "discount": true,
+    "tier_mix": true,
+    "category_mix": true,
+    "order_pattern": true,
+    "returns": false
+  },
+  "_cache_metadata": {
+    "archetype": "acc107_discount_creep",
+    "account_id": "ACC-107",
+    "source": "scripted demo verdict, not a real LLM response"
+  }
+}

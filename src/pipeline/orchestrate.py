@@ -26,6 +26,6 @@ def run_for_account(
     df, _ingestion_report = ingest(source)
     evidence_pack = build_evidence_pack(df, account_id)
     verdict = investigate(client, df, account_id, evidence_pack, model=model)
-    impact = compute_impact(evidence_pack, verdict["attributed_categories"])
+    impact = compute_impact(evidence_pack, verdict)
     priority = prioritize(impact, verdict)
     return assemble_report(account_id, evidence_pack, verdict, impact, priority)

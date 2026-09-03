@@ -1,0 +1,21 @@
+product,category,list_price,tier,base_margin,unit_cost
+PT-Cordless Drill 18V,Power Tools,9200,High,0.42,5336
+PT-Angle Grinder 900W,Power Tools,6400,High,0.42,3712
+PT-Rotary Hammer SDS,Power Tools,14800,High,0.42,8584
+DG-Digital Multimeter Pro,Diagnostic Equipment,12500,High,0.45,6875
+DG-Thermal Imager,Diagnostic Equipment,38000,High,0.45,20900
+DG-Insulation Tester,Diagnostic Equipment,21000,High,0.45,11550
+PH-Precision Torque Wrench,Precision Hardware,7300,High,0.4,4380
+PH-Micrometer Set,Precision Hardware,4100,High,0.4,2460
+PH-Bearing Puller Kit,Precision Hardware,5600,High,0.4,3360
+FF-Anchor Bolt Assortment,Fasteners & Fittings,900,Mid,0.3,630
+FF-Stainless Fastener Pack,Fasteners & Fittings,1400,Mid,0.3,980
+EA-MCB 32A,Electrical Accessories,650,Mid,0.3,455
+EA-Cable Gland Set,Electrical Accessories,1100,Mid,0.3,770
+CN-Cutting Blade 10pk,Consumables,420,Low,0.15,357
+CN-Drill Bit Set,Consumables,560,Low,0.15,476
+CN-Abrasive Discs 25pk,Consumables,300,Low,0.15,255
+SB-Safety Gloves 12pr,Safety Basics,360,Low,0.15,306
+SB-Safety Glasses 10pk,Safety Basics,240,Low,0.15,204
+CM-Degreaser 5L,Cleaning & Maintenance,480,Low,0.14,413
+CM-Shop Wipes Bulk,Cleaning & Maintenance,260,Low,0.14,224

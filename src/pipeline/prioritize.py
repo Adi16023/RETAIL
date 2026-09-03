@@ -30,6 +30,14 @@ def _magnitude_tier(pct_at_risk: float | None) -> str:
     return "low"
 
 
+def _has_sized_leak(impact: dict) -> bool:
+    return bool(
+        impact.get("per_category")
+        or impact.get("account_level_revenue_impact")
+        or impact.get("margin_impact")
+    )
+
+
 def prioritize(impact: dict, verdict: dict) -> dict:
     if verdict.get("defer") or verdict.get("verdict") == "insufficient_data":
         return {
@@ -38,32 +46,52 @@ def prioritize(impact: dict, verdict: dict) -> dict:
             "churn_risk_projection": None,
         }
 
-    if verdict.get("verdict") == "healthy" or not impact["per_category"]:
+    if verdict.get("verdict") == "healthy" or not _has_sized_leak(impact):
         return {"priority": "None", "reason": "No leakage detected.", "churn_risk_projection": None}
 
-    magnitude = _magnitude_tier(impact["pct_of_baseline_monthly_revenue_at_risk"])
+    # Severity is the worse of the revenue and margin ratios (see impact.py):
+    # a flat-revenue account bleeding a third of its gross margin must not
+    # rank Low just because its topline is intact.
+    severity = impact.get("overall_severity_pct_of_baseline")
+    magnitude = _magnitude_tier(severity)
     confidence = verdict.get("confidence", "low")
     priority = PRIORITY_MATRIX[(magnitude, confidence)]
 
-    monthly_loss = impact["total_monthly_revenue_at_risk"]
-    churn_risk_projection = {
-        "monthly_run_rate_loss": monthly_loss,
-        "projected_12_month_loss_if_unaddressed": round(monthly_loss * 12, 2),
-        "basis": (
-            "Assumes the current monthly loss rate persists unchanged for 12 months — "
-            "not a forecast of further deterioration, just the cost of inaction at today's rate."
-        ),
-    } if monthly_loss > 0 else None
+    revenue_loss = impact.get("total_monthly_revenue_at_risk") or 0.0
+    margin_impact = impact.get("margin_impact") or {}
+    margin_loss = margin_impact.get("monthly_margin_at_risk") or 0.0
+
+    churn_risk_projection = None
+    if revenue_loss > 0 or margin_loss > 0:
+        churn_risk_projection = {
+            "monthly_run_rate_loss": revenue_loss,
+            "projected_12_month_loss_if_unaddressed": round(revenue_loss * 12, 2),
+            "monthly_margin_loss": margin_loss,
+            "projected_12_month_margin_loss_if_unaddressed": round(margin_loss * 12, 2),
+            "basis": (
+                "Assumes the current monthly loss rate persists unchanged for 12 months — "
+                "not a forecast of further deterioration, just the cost of inaction at today's "
+                "rate. Revenue and margin figures overlap and must not be added together."
+            ),
+        }
+
+    reasons = []
+    revenue_pct = impact.get("pct_of_baseline_monthly_revenue_at_risk")
+    margin_pct = impact.get("pct_of_baseline_monthly_margin_at_risk")
+    if revenue_pct:
+        reasons.append(f"{round(revenue_pct * 100, 1)}% of baseline monthly revenue at risk")
+    if margin_pct:
+        reasons.append(f"{round(margin_pct * 100, 1)}% of baseline monthly gross margin at risk")
+    reason = (
+        f"{'; '.join(reasons)}, {confidence} confidence."
+        if reasons else "Leak could not be expressed as a share of baseline."
+    )
 
     return {
         "priority": priority,
         "magnitude_tier": magnitude,
         "confidence_tier": confidence,
-        "reason": (
-            f"{round(impact['pct_of_baseline_monthly_revenue_at_risk'] * 100, 1)}% of baseline monthly "
-            f"revenue at risk, {confidence} confidence."
-            if impact["pct_of_baseline_monthly_revenue_at_risk"] is not None else
-            "Revenue at risk could not be expressed as a share of baseline."
-        ),
+        "severity_pct_of_baseline": severity,
+        "reason": reason,
         "churn_risk_projection": churn_risk_projection,
     }

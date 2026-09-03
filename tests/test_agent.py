@@ -10,10 +10,8 @@ from pipeline.agent import AgentError, SUBMIT_VERDICT_TOOL, investigate
 from pipeline.evidence import build_evidence_pack
 from pipeline.ingest import ingest
 
+from datasets import DEFECTED_ACCOUNT, DEFECTED_CATEGORY, MERIDIAN_CSV
 from fakes import ScriptedClient, message, text_block, tool_use_block
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-GENERATED_CSV = REPO_ROOT / "synthetic_data" / "transactions.csv"
 
 
 def a_verdict(**overrides):
@@ -22,10 +20,11 @@ def a_verdict(**overrides):
         "temporary_or_structural": "structural",
         "confidence": "high",
         "defer": False,
-        "attributed_categories": ["Industrial Equipment"],
-        "cited_facts": ["Industrial Equipment: change-point 2025-05, 100% decline, recovered=false"],
-        "narrative": "Industrial Equipment collapsed while total revenue stayed flat.",
-        "recommended_actions": ["Reach out to the account owner about Industrial Equipment."],
+        "leak_dimensions": ["category_mix"],
+        "attributed_categories": [DEFECTED_CATEGORY],
+        "cited_facts": [f"{DEFECTED_CATEGORY}: defected, 10 months at zero, recovered=false"],
+        "narrative": f"{DEFECTED_CATEGORY} stopped completely while other lines continued.",
+        "recommended_actions": [f"Reach out to the account owner about {DEFECTED_CATEGORY}."],
         "data_needed_if_deferring": [],
     }
     v.update(overrides)
@@ -37,7 +36,7 @@ def test_happy_path_one_drilldown_then_submit():
     client = ScriptedClient([
         message(
             [text_block("Let me check the seasonal pattern."),
-             tool_use_block("get_category_seasonal_breakdown", {"category": "Industrial Equipment"}, "toolu_a")],
+             tool_use_block("get_category_seasonal_breakdown", {"category": DEFECTED_CATEGORY}, "toolu_a")],
             stop_reason="tool_use",
         ),
         message(
@@ -46,9 +45,9 @@ def test_happy_path_one_drilldown_then_submit():
         ),
     ])
 
-    df, _ = ingest(str(GENERATED_CSV))
-    pack = build_evidence_pack(df, "ACC-0001")
-    result = investigate(client, df, "ACC-0001", pack)
+    df, _ = ingest(str(MERIDIAN_CSV))
+    pack = build_evidence_pack(df, DEFECTED_ACCOUNT)
+    result = investigate(client, df, DEFECTED_ACCOUNT, pack)
 
     assert result == verdict
     assert client.call_count == 2
@@ -71,9 +70,9 @@ def test_unknown_tool_name_returns_error_result_not_a_crash():
         message([tool_use_block("not_a_real_tool", {}, "toolu_x")], stop_reason="tool_use"),
         message([tool_use_block("submit_verdict", a_verdict(), "toolu_y")], stop_reason="tool_use"),
     ])
-    df, _ = ingest(str(GENERATED_CSV))
-    pack = build_evidence_pack(df, "ACC-0001")
-    result = investigate(client, df, "ACC-0001", pack)
+    df, _ = ingest(str(MERIDIAN_CSV))
+    pack = build_evidence_pack(df, DEFECTED_ACCOUNT)
+    result = investigate(client, df, DEFECTED_ACCOUNT, pack)
     assert result == a_verdict()
 
     tool_result_msg = client.calls[1]["messages"][-1]
@@ -84,22 +83,22 @@ def test_raises_when_model_stops_without_submitting():
     client = ScriptedClient([
         message([text_block("I'm not sure, here's my analysis in prose.")], stop_reason="end_turn"),
     ])
-    df, _ = ingest(str(GENERATED_CSV))
-    pack = build_evidence_pack(df, "ACC-0001")
+    df, _ = ingest(str(MERIDIAN_CSV))
+    pack = build_evidence_pack(df, DEFECTED_ACCOUNT)
     with pytest.raises(AgentError, match="without calling submit_verdict"):
-        investigate(client, df, "ACC-0001", pack)
+        investigate(client, df, DEFECTED_ACCOUNT, pack)
 
 
 def test_raises_when_max_iterations_exceeded():
     endless_drilldown = message(
-        [tool_use_block("get_category_monthly_series", {"category": "Industrial Equipment"}, "toolu_z")],
+        [tool_use_block("get_category_monthly_series", {"category": DEFECTED_CATEGORY}, "toolu_z")],
         stop_reason="tool_use",
     )
     client = ScriptedClient([endless_drilldown] * 6)
-    df, _ = ingest(str(GENERATED_CSV))
-    pack = build_evidence_pack(df, "ACC-0001")
+    df, _ = ingest(str(MERIDIAN_CSV))
+    pack = build_evidence_pack(df, DEFECTED_ACCOUNT)
     with pytest.raises(AgentError, match="Exceeded max_iterations"):
-        investigate(client, df, "ACC-0001", pack, max_iterations=6)
+        investigate(client, df, DEFECTED_ACCOUNT, pack, max_iterations=6)
     assert client.call_count == 6
 
 
@@ -108,14 +107,14 @@ def test_drilldown_tools_return_real_data_from_the_pipeline():
     must still hit the real deterministic analytics functions."""
     client = ScriptedClient([
         message(
-            [tool_use_block("get_category_monthly_series", {"category": "Industrial Equipment"}, "toolu_c")],
+            [tool_use_block("get_category_monthly_series", {"category": DEFECTED_CATEGORY}, "toolu_c")],
             stop_reason="tool_use",
         ),
         message([tool_use_block("submit_verdict", a_verdict(), "toolu_d")], stop_reason="tool_use"),
     ])
-    df, _ = ingest(str(GENERATED_CSV))
-    pack = build_evidence_pack(df, "ACC-0001")
-    investigate(client, df, "ACC-0001", pack)
+    df, _ = ingest(str(MERIDIAN_CSV))
+    pack = build_evidence_pack(df, DEFECTED_ACCOUNT)
+    investigate(client, df, DEFECTED_ACCOUNT, pack)
 
     tool_result = json.loads(client.calls[1]["messages"][-1]["content"][0]["content"])
     # the real series should have 20 months and end at 0 (post-collapse)

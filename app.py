@@ -34,8 +34,16 @@ from pipeline.ingest import IngestionError, account_sufficiency, ingest
 from pipeline.impact import compute_impact
 from pipeline.prioritize import prioritize
 from pipeline.report import assemble_report
+from validation.answer_key import (
+    AnswerKeyUnavailable,
+    load_answer_key,
+    score_error,
+    score_report,
+    summarize,
+)
 
 DEMO_CACHE_DIR = REPO_ROOT / "demo_cache"
+MERIDIAN_TRANSACTIONS = REPO_ROOT / "data" / "meridian" / "transactions.csv"
 
 st.set_page_config(page_title="Revenue Leakage Investigator", layout="wide")
 
@@ -96,7 +104,10 @@ def render_report(report: dict, cached: bool = False):
         )
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("Account", report["account_id"])
+    account_label = report["account_id"]
+    if report.get("account_name"):
+        account_label = f"{account_label} · {report['account_name']}"
+    col1.metric("Account", account_label)
     col2.metric("Confidence", report["confidence"].title())
     col3.metric("Temporary / Structural", report["temporary_or_structural"].replace("_", " ").title())
 
@@ -108,24 +119,80 @@ def render_report(report: dict, cached: bool = False):
         for item in report["data_needed_if_deferring"]:
             st.write(f"- {item}")
 
+    # Which dimension the value is leaving through. Two accounts can share a
+    # "structural" verdict and need entirely different interventions.
+    if report.get("leak_dimensions"):
+        st.write("**Leaking through:** " + ", ".join(
+            d.replace("_", " ") for d in report["leak_dimensions"]
+        ))
+
     if report["attributed_categories"]:
         st.subheader("Attributed categories")
         st.write(", ".join(report["attributed_categories"]))
+    elif report["verdict"] == "leakage_detected" and not report["defer"]:
+        st.caption(
+            "No single category attributed — the loss is not explained by one line "
+            "(naming a scapegoat category would send the account team after the wrong thing)."
+        )
+
+    # A dimension that could not be measured must never read as "measured and
+    # fine" — say plainly what this file did not let us look at.
+    unavailable = [
+        name for name, available in (report.get("analysis_dimensions") or {}).items()
+        if not available
+    ]
+    if unavailable:
+        st.caption(
+            "Not analysed (columns absent from this file): "
+            + ", ".join(n.replace("_", " ") for n in unavailable)
+        )
 
     st.subheader("Cited evidence")
     for fact in report["cited_evidence"]:
         st.write(f"- {fact}")
 
     impact = report["financial_impact"]
-    if impact["per_category"]:
+    margin_impact = impact.get("margin_impact")
+    account_impact = impact.get("account_level_revenue_impact")
+
+    if impact["per_category"] or margin_impact or account_impact:
         st.subheader("Financial impact")
+
         rows = [c for c in impact["per_category"] if c["quantifiable"]]
         if rows:
             st.dataframe(pd.DataFrame(rows), width="stretch")
-        unquantified = [c for c in impact["per_category"] if not c["quantifiable"]]
-        for c in unquantified:
-            st.caption(f"{c['category']}: not quantifiable — {c['reason']}")
-        st.metric("Total monthly revenue at risk", f"₹{impact['total_monthly_revenue_at_risk']:,.0f}")
+        for c in impact["per_category"]:
+            if not c["quantifiable"]:
+                st.caption(f"{c['category']}: not quantifiable — {c['reason']}")
+
+        if account_impact:
+            st.write(
+                f"**Whole-account decline:** ₹{account_impact['baseline_monthly_revenue']:,.0f}/month "
+                f"→ ₹{account_impact['recent_monthly_revenue']:,.0f}/month"
+            )
+            st.caption(account_impact["basis"])
+
+        # Revenue and margin are shown side by side and never added: margin is
+        # a slice of revenue, and a leak can be entirely in one with nothing
+        # in the other (flat revenue, collapsing margin).
+        col1, col2 = st.columns(2)
+        col1.metric("Monthly revenue at risk", f"₹{impact['total_monthly_revenue_at_risk']:,.0f}")
+        if margin_impact:
+            col2.metric(
+                "Monthly gross margin at risk",
+                f"₹{margin_impact['monthly_margin_at_risk']:,.0f}",
+                f"{margin_impact['margin_pct_erosion_pp']}pp margin rate",
+                delta_color="inverse",
+            )
+            st.caption(
+                f"Margin rate {margin_impact['baseline_margin_pct'] * 100:.1f}% → "
+                f"{margin_impact['recent_margin_pct'] * 100:.1f}%. {margin_impact['basis']}"
+            )
+        if impact.get("overall_severity_pct_of_baseline"):
+            st.caption(
+                f"Severity: {impact['overall_severity_pct_of_baseline'] * 100:.1f}% of baseline "
+                "(the worse of the revenue and margin ratios — they overlap and are not summed)."
+            )
 
     priority = report["prioritization"]
     st.subheader("Prioritization")
@@ -150,7 +217,9 @@ def render_report(report: dict, cached: bool = False):
 st.title("Revenue Leakage Investigator")
 st.caption("Detect → Investigate → Attribute → Prioritise — Quessathon Retail challenge")
 
-mode = st.sidebar.radio("Mode", ["Analyze a CSV", "View offline demo"])
+mode = st.sidebar.radio(
+    "Mode", ["Analyze a CSV", "Answer Key validation", "View offline demo"]
+)
 
 provider = st.sidebar.radio(
     "LLM provider", ["Groq", "Anthropic"],
@@ -164,7 +233,145 @@ if provider == "Groq":
 else:
     model = st.sidebar.text_input("Model", value=DEFAULT_MODEL)
 
-if mode == "View offline demo":
+if mode == "Answer Key validation":
+    st.subheader("Answer Key validation")
+    st.caption(
+        "Runs the live agent over the reference dataset and compares each verdict against the "
+        "workbook's Answer Key tab. The key is used only to score the output here — it is never "
+        "shown to the agent."
+    )
+
+    try:
+        key = load_answer_key()
+    except AnswerKeyUnavailable as e:
+        st.error(str(e))
+        st.stop()
+
+    if not MERIDIAN_TRANSACTIONS.exists():
+        st.error(
+            f"Reference transactions not found at {MERIDIAN_TRANSACTIONS}. "
+            "Run `python scripts/prepare_dataset.py` to extract them from the workbook."
+        )
+        st.stop()
+
+    validation_df, _ = ingest(str(MERIDIAN_TRANSACTIONS))
+    all_accounts = sorted(validation_df["account_id"].unique())
+
+    selected = st.multiselect(
+        "Accounts to validate",
+        all_accounts,
+        default=all_accounts,
+        format_func=lambda a: f"{a} — {key.get(a, {}).get('account_name', '')}",
+    )
+    st.caption(f"{len(selected)} account(s) selected — one live LLM call each.")
+
+    if st.button("Run validation", type="primary", disabled=not selected):
+        try:
+            client = get_live_client(provider, groq_model=model if provider == "Groq" else None)
+        except Exception as e:
+            key_hint = "GROQ_API_KEY" if provider == "Groq" else "ANTHROPIC_API_KEY"
+            st.error(f"Could not initialize the {provider} client: {e}. Set {key_hint}.")
+            st.stop()
+
+        results = []
+        progress = st.progress(0.0)
+        status = st.empty()
+        for i, account_id in enumerate(selected, start=1):
+            status.write(f"Investigating {account_id} ({i}/{len(selected)})…")
+            try:
+                pack = build_evidence_pack(validation_df, account_id)
+                verdict, error = run_agent_with_error_handling(
+                    client, validation_df, account_id, pack, model, provider
+                )
+                if error:
+                    results.append(score_error(account_id, key[account_id], error))
+                else:
+                    impact = compute_impact(pack, verdict)
+                    priority = prioritize(impact, verdict)
+                    report = assemble_report(account_id, pack, verdict, impact, priority)
+                    results.append(score_report(report, key[account_id]))
+            except Exception as e:  # a single bad account must not lose the whole run
+                results.append(score_error(account_id, key[account_id], str(e)))
+            progress.progress(i / len(selected))
+        status.empty()
+        st.session_state["validation_results"] = results
+
+    results = st.session_state.get("validation_results")
+    if results:
+        summary = summarize(results)
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Accuracy", f"{summary['accuracy'] * 100:.0f}%",
+                    f"{summary['matched']}/{summary['total']} accounts")
+        # Broken out by expected outcome because one overall number cannot
+        # distinguish a discriminating agent from one that flags everything.
+        for column, outcome in zip((col2, col3, col4), ("FLAG", "NO FLAG", "DEFER")):
+            bucket = summary["by_expected_outcome"].get(outcome)
+            if bucket:
+                column.metric(
+                    f"Expected {outcome}", f"{bucket['accuracy'] * 100:.0f}%",
+                    f"{bucket['matched']}/{bucket['total']}",
+                )
+
+        if summary["errors"]:
+            st.warning(f"{summary['errors']} account(s) failed to produce a verdict — counted as misses.")
+
+        table = pd.DataFrame([
+            {
+                "": "✅" if r["outcome_match"] else "❌",
+                "Account": r["account_id"],
+                "Name": r["account_name"],
+                "Archetype": r["archetype"],
+                "Expected": r["expected_verdict_text"],
+                "Agent said": r["actual_outcome"],
+                "Exp. confidence": r["expected_confidence"],
+                "Confidence": r["actual_confidence"],
+                "Leak dimensions": ", ".join(r["leak_dimensions"]),
+                "Categories": ", ".join(r["attributed_categories"]),
+                "Priority": r["priority"],
+            }
+            for r in results
+        ])
+        st.dataframe(table, width="stretch", hide_index=True)
+
+        if summary["mismatches"]:
+            st.subheader("Mismatches")
+            for line in summary["mismatches"]:
+                st.write(f"- {line}")
+
+        st.subheader("Per-account detail")
+        for r in results:
+            icon = "✅" if r["outcome_match"] else "❌"
+            with st.expander(f"{icon} {r['account_id']} — {r['account_name']} ({r['archetype']})"):
+                st.write(f"**What this account tests:** {r['what_it_tests']}")
+                st.write(f"**What is really happening:** {r['what_is_really_happening']}")
+                st.write(
+                    f"**Expected:** {r['expected_verdict_text']} "
+                    f"({r['expected_confidence']}, {r['expected_leak_type']})"
+                )
+                if r.get("error"):
+                    st.error(f"Run failed: {r['error']}")
+                else:
+                    st.write(
+                        f"**Agent said:** {r['actual_outcome']} "
+                        f"({r['actual_confidence']} confidence, {r['actual_temporary_or_structural']})"
+                    )
+                    st.write(r["narrative"])
+                    if r["cited_evidence"]:
+                        st.write("**Cited evidence:**")
+                        for fact in r["cited_evidence"]:
+                            st.write(f"- {fact}")
+
+        st.download_button(
+            "Download scorecard (JSON)",
+            data=json.dumps({"summary": summary, "results": results}, indent=2),
+            file_name="answer_key_scorecard.json",
+            mime="application/json",
+        )
+    else:
+        st.info("Select accounts and click **Run validation** to score the agent against the Answer Key.")
+
+elif mode == "View offline demo":
     cache_files = sorted(DEMO_CACHE_DIR.glob("*.json")) if DEMO_CACHE_DIR.exists() else []
     if not cache_files:
         st.error(f"No cached demo reports found in {DEMO_CACHE_DIR}. Run scripts/generate_demo_cache.py first.")
@@ -224,7 +431,7 @@ else:
                 )
                 st.stop()
 
-            impact = compute_impact(evidence_pack, verdict["attributed_categories"])
+            impact = compute_impact(evidence_pack, verdict)
             priority = prioritize(impact, verdict)
             report = assemble_report(account_id, evidence_pack, verdict, impact, priority)
             render_report(report)

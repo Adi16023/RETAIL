@@ -1,0 +1,60 @@
+{
+  "account_id": "ACC-0001",
+  "verdict": "leakage_detected",
+  "temporary_or_structural": "structural",
+  "confidence": "high",
+  "defer": false,
+  "narrative": "This account looks healthy at the top line \u2014 total revenue is essentially flat. But Industrial Equipment, previously a major share of this account's business, has completely stopped, replaced by lower-value purchases elsewhere. This is the classic 'quietly losing value while still buying' pattern.",
+  "attributed_categories": [
+    "Industrial Equipment"
+  ],
+  "cited_evidence": [
+    "Industrial Equipment revenue collapsed to near zero with a detected change-point and no recovery",
+    "Total account revenue stayed roughly flat over the same period"
+  ],
+  "recommended_actions": [
+    "Have the account owner reach out specifically about Industrial Equipment \u2014 find out if it moved to a competitor or another budget line.",
+    "Treat this as a retention priority despite stable top-line revenue."
+  ],
+  "data_needed_if_deferring": [],
+  "financial_impact": {
+    "per_category": [
+      {
+        "category": "Industrial Equipment",
+        "quantifiable": true,
+        "monthly_revenue_at_risk": 64714.34,
+        "historical_value_lost_to_date": 388286.04,
+        "annualized_run_rate_loss": 776572.08,
+        "persistence_months": 6,
+        "recovered": false,
+        "category_baseline_revenue_share": 0.6691
+      }
+    ],
+    "total_monthly_revenue_at_risk": 64714.34,
+    "total_historical_value_lost": 388286.04,
+    "pct_of_baseline_monthly_revenue_at_risk": 0.4407
+  },
+  "prioritization": {
+    "priority": "High",
+    "magnitude_tier": "high",
+    "confidence_tier": "high",
+    "reason": "44.1% of baseline monthly revenue at risk, high confidence.",
+    "churn_risk_projection": {
+      "monthly_run_rate_loss": 64714.34,
+      "projected_12_month_loss_if_unaddressed": 776572.08,
+      "basis": "Assumes the current monthly loss rate persists unchanged for 12 months \u2014 not a forecast of further deterioration, just the cost of inaction at today's rate."
+    }
+  },
+  "data_sufficiency": {
+    "score": 1.0,
+    "label": "sufficient",
+    "flags": [],
+    "history_months": 19.7,
+    "order_count": 253,
+    "category_count": 7
+  },
+  "_cache_metadata": {
+    "archetype": "structural_mix_collapse",
+    "source": "scripted demo verdict, not a real LLM response"
+  }
+}

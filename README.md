@@ -22,11 +22,11 @@ venv/Scripts/python scripts/prepare_dataset.py     # workbook -> data/meridian/*
 venv/Scripts/streamlit run app.py
 ```
 
-Three modes in the sidebar:
+One screen. Pick an account, then work down three steps:
 
-- **Analyze a CSV** — upload any transaction file, pick an account, run the live pipeline.
-- **Answer Key validation** — run the agent across the reference accounts and score every verdict against the workbook's Answer Key tab. Needs live model access.
-- **View offline demo** — pre-computed reports from `demo_cache/`, for when there's no network or key.
+1. **What the data says** — the deterministic evidence: status strip, KPI tiles, and tabs for trend, value mix, pricing, order pattern, data quality and the raw monthly table. No model, no API calls.
+2. **What the AI concludes** — one LLM call. Choose **Open source** or **Proprietary**; the verdict arrives with tabs for evidence, what was ruled out, what to do, and confidence limits. Results are cached per account + model, so re-visiting is instant and free.
+3. **Was the AI right?** — scores that verdict against the workbook's Answer Key for this account, with an option to score the whole book.
 
 ## Score the agent against the Answer Key
 

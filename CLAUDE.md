@@ -23,7 +23,6 @@ venv/Scripts/python -m pytest tests/ -v            # all 136 tests
 venv/Scripts/python -m pytest tests/test_agent.py::test_happy_path_one_drilldown_then_submit -v   # one test
 
 venv/Scripts/python scripts/validate_answer_key.py            # score the live agent vs the Answer Key
-venv/Scripts/python scripts/generate_demo_cache.py            # refresh demo_cache/
 ```
 
 `validate_answer_key.py` takes `--provider`, `--model`, `--accounts`, and `--out`, and exits non-zero on any mismatch.
@@ -134,8 +133,15 @@ None of it measures model judgement; that is `scripts/validate_answer_key.py`, w
 
 ## Demo UI
 
-[app.py](app.py) has three modes:
+[app.py](app.py) is a single account-centric screen — no sidebar, no modes. Pick an account, then three ordered steps that build on each other:
 
-- **Analyze a CSV** — the live pipeline. If Stage 4 fails it still shows the deterministic Stage 1–3 evidence rather than blanking the page.
-- **Answer Key validation** — runs the agent across the reference accounts and scores each verdict against the Answer Key, reporting accuracy split by expected outcome (FLAG / NO FLAG / DEFER). The split matters: one overall number can't distinguish a discriminating agent from one that flags everything. A failed run is recorded as a miss, never dropped from the denominator.
-- **View offline demo** — pre-computed reports from `demo_cache/`, the on-stage fallback for no network / no key / rate limit. Built with scripted verdicts, labelled as such in the UI, and **never** silently substituted for a failed live run; the user picks that mode explicitly.
+1. **What the data says** — [ui/dashboard.py](src/ui/dashboard.py). Status strip, KPI tiles, six tabs. Fully deterministic, so clicking through all 18 accounts costs nothing. This is also exactly what Stage 4 is shown.
+2. **What the AI concludes** — the one LLM call, then [ui/verdict.py](src/ui/verdict.py). Its **Ruled out** tab is built from the evidence pack rather than the model's prose, so it stays true even when the model omits something; showing what was considered and dismissed is what makes the verdict trustworthy.
+3. **Was the AI right** — scores *this account's* verdict against the Answer Key. Whole-book scoring is a collapsed drill-up, not a second view of the same thing.
+
+Two UI rules that are easy to break:
+
+- **The model picker offers "Open source" / "Proprietary", never model ids.** The mapping lives in `MODEL_CHOICES` in app.py. A manager choosing between `gpt-oss-120b` and `claude-sonnet-5` is being asked a question they can't answer; open-vs-proprietary is a decision they own.
+- **Investigations are cached to disk** by [ui/cache.py](src/ui/cache.py), keyed by account + model + a hash of that account's rows, and reused automatically (~5s → ~0.02s). The row hash is load-bearing: without it a changed upload would serve a verdict computed from data the user already replaced, silently disagreeing with the charts above it. Changing the model is a deliberate miss and re-runs.
+
+Chart colours come from [ui/palette.py](src/ui/palette.py) and were checked with the data-viz validator against the real Streamlit surfaces, not chosen by eye. Value tiers use a single-hue **ordinal** ramp (they're an ordered scale, not three unrelated categories), with the high tier always the most prominent step — darkest on light, lightest on dark. Revenue and margin are always **two stacked charts, never a dual axis**: the whole premise is that they move independently, and a dual axis invents a correlation by choosing where the scales align.

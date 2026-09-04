@@ -1,0 +1,9 @@
+# The app is pinned to the light theme.
+#
+# The chart palette in src/ui/palette.py was validated against this exact
+# surface (#ffffff) — contrast and colour-blind separation are only meaningful
+# against the surface the chart actually renders on. Letting the viewer's OS
+# flip Streamlit's chrome to dark would leave validated light-surface colours
+# sitting on an unvalidated dark one.
+[theme]
+base = "light"

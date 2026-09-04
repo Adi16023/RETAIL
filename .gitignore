@@ -5,3 +5,11 @@ __pycache__/
 .pytest_cache/
 .streamlit/secrets.toml
 .DS_Store
+
+# Output of scripts/validate_answer_key.py — a record of one live run, and
+# different on every run. Regenerate rather than tracking the churn.
+scorecard.json
+
+# Saved investigation results, keyed by account + model + data fingerprint.
+# Purely a cost/latency cache — deleting it only costs a re-run.
+.cache/

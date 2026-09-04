@@ -1,22 +1,30 @@
 """
-Demo UI (Stage 8 surface, per plan.md): upload a transaction CSV, run the
-full 7-stage pipeline, and render the verdict, evidence, financial impact,
-and prioritization. Two modes:
+Revenue Leakage Investigator — the demo surface.
 
-  - "Analyze a CSV": the real pipeline, including a live Stage 4 LLM call.
-    Deterministic results (Stages 1-3) are shown even if Stage 4 fails, so
-    a live-failure degrades gracefully instead of blanking the whole page.
-  - "View offline demo": loads a pre-computed cached report from
-    demo_cache/ — the live-failure fallback required by plan.md Phase 4
-    ("offline fallback plan (cached run of a known archetype)"). Never
-    silently substituted for a real uploaded file's failed run — the user
-    picks it explicitly.
+ONE screen, one account, three steps in the order a manager actually works:
 
-No hard-coded absolute paths — everything is relative to this file or
-comes from the uploaded file object.
+  1. What this account has been doing        the deterministic evidence
+  2. Is anything actually going wrong?       the single LLM call, on demand
+  3. How much should you trust that verdict? scored against the Answer Key
+
+Headings and captions are written for an account manager, not an engineer:
+they say what the section answers, not how it is computed. Where an
+implementation detail earns its place ("every number it quotes comes from the
+analysis above"), it is there because it tells the reader how much to trust
+what they are looking at.
+
+The steps are strictly ordered because they build on each other: the evidence
+is what the agent reasons over, and the verdict is what the Answer Key scores.
+
+The evidence costs nothing — clicking through eighteen accounts spends no money and
+waits on no model. The verdict is a paid API call, so its result is cached to disk
+by account + model + data fingerprint and reused automatically; only a change
+to one of those three re-runs it.
+
+No hard-coded absolute paths — everything is relative to this file or comes
+from the uploaded file object.
 """
 
-import json
 import sys
 from pathlib import Path
 
@@ -28,35 +36,49 @@ REPO_ROOT = Path(__file__).resolve().parent
 load_dotenv(REPO_ROOT / ".env")
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from pipeline.agent import DEFAULT_MODEL, AgentError
+from pipeline.agent import AgentError
 from pipeline.evidence import build_evidence_pack
-from pipeline.ingest import IngestionError, account_sufficiency, ingest
 from pipeline.impact import compute_impact
+from pipeline.ingest import IngestionError, ingest
 from pipeline.prioritize import prioritize
 from pipeline.report import assemble_report
-from validation.answer_key import (
-    AnswerKeyUnavailable,
-    load_answer_key,
-    score_error,
-    score_report,
-    summarize,
-)
+from ui import cache
+from ui.dashboard import render_account_dashboard
+from ui.verdict import render_verdict
+from validation.answer_key import AnswerKeyUnavailable, load_answer_key, score_report
 
-DEMO_CACHE_DIR = REPO_ROOT / "demo_cache"
 MERIDIAN_TRANSACTIONS = REPO_ROOT / "data" / "meridian" / "transactions.csv"
+
+# The model choice is presented by what it MEANS to the business — an open
+# model you can self-host versus a proprietary API — not by model id. A
+# manager choosing between "gpt-oss-120b" and "claude-sonnet-5" is being asked
+# a question they have no basis to answer; choosing between open source and
+# proprietary is a real decision they own.
+MODEL_CHOICES = {
+    "Open source": {
+        "provider": "Groq",
+        "model": "openai/gpt-oss-120b",
+        "note": "An open-weights model. No vendor lock-in, self-hostable.",
+    },
+    "Proprietary": {
+        "provider": "Anthropic",
+        "model": "claude-sonnet-5",
+        "note": "A frontier commercial model, called over its vendor API.",
+    },
+}
 
 st.set_page_config(page_title="Revenue Leakage Investigator", layout="wide")
 
 
-def get_live_client(provider: str, groq_model: str | None = None):
-    """Construct the real LLM client for the chosen provider. Import is
-    local so the app still runs (in offline-demo mode) even if a package
-    or credentials aren't available.
+# --- Live model access -----------------------------------------------------
 
-    Groq is a temporary stand-in for Claude (see pipeline/groq_client.py)
-    while the team doesn't yet have Anthropic API access — swapping back
-    is just picking "Anthropic" in the sidebar once a key exists; nothing
-    else in the pipeline is provider-aware."""
+def get_live_client(provider: str, groq_model: str | None = None):
+    """Construct the real LLM client. Imported locally so the rest of the app
+    still runs when a package or credential is missing.
+
+    Nothing else in the pipeline is provider-aware — swapping providers is
+    this function and nothing more.
+    """
     if provider == "Groq":
         from pipeline.groq_client import GroqShimClient
         return GroqShimClient(model_override=groq_model)
@@ -68,372 +90,351 @@ def run_agent_with_error_handling(client, df, account_id, evidence_pack, model, 
     from pipeline.agent import investigate
 
     error_module = __import__("groq") if provider == "Groq" else __import__("anthropic")
-    provider_name = "Groq" if provider == "Groq" else "Anthropic"
     key_hint = "GROQ_API_KEY" if provider == "Groq" else "ANTHROPIC_API_KEY"
 
     try:
         return investigate(client, df, account_id, evidence_pack, model=model), None
     except error_module.AuthenticationError:
-        return None, f"No valid {provider_name} API credentials — set {key_hint}, or use 'View offline demo' instead."
+        return None, f"No valid API credentials for this model — set {key_hint} in .env."
     except error_module.RateLimitError:
-        return None, f"Rate limited by the {provider_name} API. Wait a moment and retry, or use 'View offline demo'."
+        return None, "Rate limited by the model provider. Wait a moment and retry."
     except error_module.APIConnectionError:
-        return None, f"Could not reach the {provider_name} API (network issue). Use 'View offline demo' if this persists."
+        return None, "Could not reach the model provider (network issue)."
     except error_module.APIStatusError as e:
-        return None, f"{provider_name} API error ({e.status_code}): {e.message}"
+        return None, f"Model provider error ({e.status_code}): {e.message}"
     except AgentError as e:
         return None, f"Agent did not reach a verdict: {e}"
     except Exception as e:
         return None, f"Unexpected error during investigation: {e}"
 
 
-def render_verdict_badge(verdict: str, defer: bool):
-    if defer or verdict == "insufficient_data":
-        st.warning(f"**Verdict: {verdict.replace('_', ' ').title()}** — evidence was insufficient for a confident call.")
-    elif verdict == "leakage_detected":
-        st.error(f"**Verdict: {verdict.replace('_', ' ').title()}**")
-    else:
-        st.success(f"**Verdict: {verdict.replace('_', ' ').title()}**")
-
-
-def render_report(report: dict, cached: bool = False):
-    if cached:
-        st.info(
-            f"Cached offline demo run ({report.get('_cache_metadata', {}).get('archetype', 'unknown')} archetype) — "
-            "not a live LLM call. Used when live API access isn't available."
-        )
-
-    col1, col2, col3 = st.columns(3)
-    account_label = report["account_id"]
-    if report.get("account_name"):
-        account_label = f"{account_label} · {report['account_name']}"
-    col1.metric("Account", account_label)
-    col2.metric("Confidence", report["confidence"].title())
-    col3.metric("Temporary / Structural", report["temporary_or_structural"].replace("_", " ").title())
-
-    render_verdict_badge(report["verdict"], report["defer"])
-    st.write(report["narrative"])
-
-    if report["defer"] and report["data_needed_if_deferring"]:
-        st.write("**What data would resolve this:**")
-        for item in report["data_needed_if_deferring"]:
-            st.write(f"- {item}")
-
-    # Which dimension the value is leaving through. Two accounts can share a
-    # "structural" verdict and need entirely different interventions.
-    if report.get("leak_dimensions"):
-        st.write("**Leaking through:** " + ", ".join(
-            d.replace("_", " ") for d in report["leak_dimensions"]
-        ))
-
-    if report["attributed_categories"]:
-        st.subheader("Attributed categories")
-        st.write(", ".join(report["attributed_categories"]))
-    elif report["verdict"] == "leakage_detected" and not report["defer"]:
-        st.caption(
-            "No single category attributed — the loss is not explained by one line "
-            "(naming a scapegoat category would send the account team after the wrong thing)."
-        )
-
-    # A dimension that could not be measured must never read as "measured and
-    # fine" — say plainly what this file did not let us look at.
-    unavailable = [
-        name for name, available in (report.get("analysis_dimensions") or {}).items()
-        if not available
-    ]
-    if unavailable:
-        st.caption(
-            "Not analysed (columns absent from this file): "
-            + ", ".join(n.replace("_", " ") for n in unavailable)
-        )
-
-    st.subheader("Cited evidence")
-    for fact in report["cited_evidence"]:
-        st.write(f"- {fact}")
-
-    impact = report["financial_impact"]
-    margin_impact = impact.get("margin_impact")
-    account_impact = impact.get("account_level_revenue_impact")
-
-    if impact["per_category"] or margin_impact or account_impact:
-        st.subheader("Financial impact")
-
-        rows = [c for c in impact["per_category"] if c["quantifiable"]]
-        if rows:
-            st.dataframe(pd.DataFrame(rows), width="stretch")
-        for c in impact["per_category"]:
-            if not c["quantifiable"]:
-                st.caption(f"{c['category']}: not quantifiable — {c['reason']}")
-
-        if account_impact:
-            st.write(
-                f"**Whole-account decline:** ₹{account_impact['baseline_monthly_revenue']:,.0f}/month "
-                f"→ ₹{account_impact['recent_monthly_revenue']:,.0f}/month"
-            )
-            st.caption(account_impact["basis"])
-
-        # Revenue and margin are shown side by side and never added: margin is
-        # a slice of revenue, and a leak can be entirely in one with nothing
-        # in the other (flat revenue, collapsing margin).
-        col1, col2 = st.columns(2)
-        col1.metric("Monthly revenue at risk", f"₹{impact['total_monthly_revenue_at_risk']:,.0f}")
-        if margin_impact:
-            col2.metric(
-                "Monthly gross margin at risk",
-                f"₹{margin_impact['monthly_margin_at_risk']:,.0f}",
-                f"{margin_impact['margin_pct_erosion_pp']}pp margin rate",
-                delta_color="inverse",
-            )
-            st.caption(
-                f"Margin rate {margin_impact['baseline_margin_pct'] * 100:.1f}% → "
-                f"{margin_impact['recent_margin_pct'] * 100:.1f}%. {margin_impact['basis']}"
-            )
-        if impact.get("overall_severity_pct_of_baseline"):
-            st.caption(
-                f"Severity: {impact['overall_severity_pct_of_baseline'] * 100:.1f}% of baseline "
-                "(the worse of the revenue and margin ratios — they overlap and are not summed)."
-            )
-
-    priority = report["prioritization"]
-    st.subheader("Prioritization")
-    st.write(f"**Priority: {priority['priority']}** — {priority.get('reason', '')}")
-    if priority.get("churn_risk_projection"):
-        crp = priority["churn_risk_projection"]
-        st.write(
-            f"If this trend persists: projected loss of ₹{crp['projected_12_month_loss_if_unaddressed']:,.0f} "
-            f"over 12 months (₹{crp['monthly_run_rate_loss']:,.0f}/month)."
-        )
-        st.caption(crp["basis"])
-
-    if report["recommended_actions"]:
-        st.subheader("Recommended actions")
-        for action in report["recommended_actions"]:
-            st.write(f"- {action}")
-
-    with st.expander("Data sufficiency"):
-        st.json(report["data_sufficiency"])
-
-
-st.title("Revenue Leakage Investigator")
-st.caption("Detect → Investigate → Attribute → Prioritise — Quessathon Retail challenge")
-
-mode = st.sidebar.radio(
-    "Mode", ["Analyze a CSV", "Answer Key validation", "View offline demo"]
-)
-
-provider = st.sidebar.radio(
-    "LLM provider", ["Groq", "Anthropic"],
-    help="Groq is a temporary stand-in while the team doesn't have Claude API access yet "
-         "(see pipeline/groq_client.py). Switch to Anthropic once a key is available — "
-         "nothing else in the pipeline needs to change.",
-)
-if provider == "Groq":
-    from pipeline.groq_client import DEFAULT_GROQ_MODEL
-    model = st.sidebar.text_input("Groq model", value=DEFAULT_GROQ_MODEL)
-else:
-    model = st.sidebar.text_input("Model", value=DEFAULT_MODEL)
-
-if mode == "Answer Key validation":
-    st.subheader("Answer Key validation")
-    st.caption(
-        "Runs the live agent over the reference dataset and compares each verdict against the "
-        "workbook's Answer Key tab. The key is used only to score the output here — it is never "
-        "shown to the agent."
-    )
+def investigate_account(df, account_id, pack, choice_label):
+    """Run Stages 4-7 for one account. Returns (report, error)."""
+    spec = MODEL_CHOICES[choice_label]
+    provider, model = spec["provider"], spec["model"]
 
     try:
-        key = load_answer_key()
-    except AnswerKeyUnavailable as e:
-        st.error(str(e))
-        st.stop()
+        client = get_live_client(provider, groq_model=model if provider == "Groq" else None)
+    except Exception as e:
+        key_hint = "GROQ_API_KEY" if provider == "Groq" else "ANTHROPIC_API_KEY"
+        return None, f"Could not initialize the model client: {e}. Set {key_hint} in .env."
 
+    verdict, error = run_agent_with_error_handling(client, df, account_id, pack, model, provider)
+    if error:
+        return None, error
+
+    impact = compute_impact(pack, verdict)
+    priority = prioritize(impact, verdict)
+    report = assemble_report(account_id, pack, verdict, impact, priority)
+    report["_run"] = {"choice": choice_label, "model": model, "provider": provider}
+    return report, None
+
+
+DIMENSION_LABELS = {
+    "revenue": "Revenue", "margin": "Margin", "discount": "Discount",
+    "tier_mix": "Value mix", "category_mix": "Category mix",
+    "order_pattern": "Order pattern", "returns": "Returns",
+}
+
+
+def render_ingestion_report(report: dict) -> None:
+    """How the raw file was resolved to the canonical schema.
+
+    A mapping table rather than raw JSON, because on an unfamiliar file this
+    is the first thing worth checking: which of your columns became which
+    field, what had to be derived, and — most importantly — which analyses
+    the file therefore cannot support. A dimension that could not be measured
+    must never be mistaken for one that was measured and found fine.
+    """
+    rows, dropped = report.get("rows_total_raw", 0), report.get("rows_dropped_invalid", 0)
+    left, right = st.columns(2)
+    left.metric("Rows read", f"{rows:,}")
+    right.metric("Rows dropped", f"{dropped:,}",
+                 help="Unparseable date, non-numeric revenue, or missing account id.")
+    if dropped:
+        st.caption("Dropped for: " + ", ".join(
+            f"{reason.replace('_', ' ')} ({count})"
+            for reason, count in (report.get("row_drop_reasons") or {}).items() if count
+        ))
+
+    inferred = {note.split(" ")[0]: note for note in report.get("fields_inferred", [])}
+    st.markdown("**Column mapping** — your columns → the fields the pipeline needs")
+    st.dataframe(
+        pd.DataFrame([
+            {
+                "Field": field,
+                "Came from": (
+                    source_column if source_column
+                    else f"derived: {inferred[field].split('(', 1)[-1].rstrip(')')}"
+                    if field in inferred else "not present"
+                ),
+                "Status": "matched" if source_column else "derived" if field in inferred else "missing",
+            }
+            for field, source_column in (report.get("column_mapping") or {}).items()
+        ]),
+        use_container_width=True, hide_index=True,
+    )
+
+    for note in report.get("fields_inferred", []):
+        if note.split(" ")[0] not in (report.get("column_mapping") or {}):
+            st.caption(f"Derived: {note}")
+
+    dimensions = report.get("analysis_dimensions") or {}
+    available = [DIMENSION_LABELS.get(k, k) for k, ok in dimensions.items() if ok]
+    missing = [DIMENSION_LABELS.get(k, k) for k, ok in dimensions.items() if not ok]
+    st.markdown("**What this file can and cannot show**")
+    if available:
+        st.success("Analysable: " + ", ".join(available))
+    if missing:
+        st.warning(
+            "Not analysable — these columns are absent: " + ", ".join(missing)
+            + ". They were not measured, which is not the same as measured and fine."
+        )
+
+    with st.expander("Raw ingestion report (JSON)"):
+        st.json(report)
+
+
+# --- Data (cached: every widget interaction re-runs the whole script) ------
+#
+# Without these, toggling the model radio re-read the CSV, re-ran ingestion
+# and rebuilt the evidence pack before drawing a single pixel — which is what
+# made switching models feel slow. None of that work depends on the widget
+# that changed, so it is cached on its inputs.
+
+@st.cache_data(show_spinner=False)
+def load_reference_data():
+    return ingest(str(MERIDIAN_TRANSACTIONS))
+
+
+@st.cache_data(show_spinner=False)
+def load_uploaded_data(file_bytes: bytes, filename: str):
+    """Keyed on the file's CONTENT, not the upload widget's object identity —
+    Streamlit hands back a new object every rerun, which would defeat the
+    cache entirely."""
+    import io
+    buffer = io.BytesIO(file_bytes)
+    buffer.name = filename
+    return ingest(buffer)
+
+
+@st.cache_data(show_spinner=False)
+def cached_evidence_pack(df: pd.DataFrame, account_id: str) -> dict:
+    return build_evidence_pack(df, account_id)
+
+
+# --- Data ------------------------------------------------------------------
+
+heading, chooser = st.columns([4, 1])
+with heading:
+    st.title("Revenue Leakage Investigator")
+    st.caption("Detect → Investigate → Attribute → Prioritise")
+with chooser:
+    st.write("")
+    # A popover, not a mode switch: choosing a data source used to replace the
+    # whole page with an uploader, which made one screen behave like two. The
+    # reference dataset is simply the default, and a file dropped here takes
+    # over in place.
+    with st.popover("Data source", use_container_width=True):
+        uploaded_file = st.file_uploader("Use your own transaction file", type=["csv", "xlsx"])
+        st.caption(
+            "Leave this empty to use the reference dataset — the official Quessathon "
+            "workbook, already extracted."
+        )
+
+if uploaded_file is not None:
+    using_reference = False
+    try:
+        df, ingestion_report = load_uploaded_data(uploaded_file.getvalue(), uploaded_file.name)
+    except IngestionError as e:
+        st.error(f"Could not process this file: {e}")
+        st.stop()
+else:
+    using_reference = True
     if not MERIDIAN_TRANSACTIONS.exists():
         st.error(
-            f"Reference transactions not found at {MERIDIAN_TRANSACTIONS}. "
-            "Run `python scripts/prepare_dataset.py` to extract them from the workbook."
+            f"Reference data not found at {MERIDIAN_TRANSACTIONS}. "
+            "Run `python scripts/prepare_dataset.py` to extract it from the workbook."
         )
         st.stop()
+    df, ingestion_report = load_reference_data()
 
-    validation_df, _ = ingest(str(MERIDIAN_TRANSACTIONS))
-    all_accounts = sorted(validation_df["account_id"].unique())
 
-    selected = st.multiselect(
-        "Accounts to validate",
-        all_accounts,
-        default=all_accounts,
-        format_func=lambda a: f"{a} — {key.get(a, {}).get('account_name', '')}",
+# --- Account picker (the one control everything hangs off) -----------------
+
+names = (
+    df.drop_duplicates("account_id").set_index("account_id")["account_name"].to_dict()
+    if "account_name" in df.columns else {}
+)
+accounts = sorted(df["account_id"].unique())
+
+picker, summary = st.columns([2, 3])
+with picker:
+    account_id = st.selectbox(
+        "Account under investigation", accounts,
+        format_func=lambda a: f"{a} — {names[a]}" if names.get(a) else a,
     )
-    st.caption(f"{len(selected)} account(s) selected — one live LLM call each.")
+with summary:
+    st.write("")
+    label = "Reference dataset" if using_reference else f"Uploaded: {uploaded_file.name}"
+    st.caption(
+        f"**{label}** — **{len(accounts)}** accounts · "
+        f"**{ingestion_report['n_orders']:,}** orders · "
+        f"**{ingestion_report['rows_total_raw']:,}** transaction lines · "
+        f"{ingestion_report['date_range'][0]} → {ingestion_report['date_range'][1]}"
+    )
 
-    if st.button("Run validation", type="primary", disabled=not selected):
-        try:
-            client = get_live_client(provider, groq_model=model if provider == "Groq" else None)
-        except Exception as e:
-            key_hint = "GROQ_API_KEY" if provider == "Groq" else "ANTHROPIC_API_KEY"
-            st.error(f"Could not initialize the {provider} client: {e}. Set {key_hint}.")
-            st.stop()
+# Directly under the account field: how this file was resolved. It sits here
+# rather than in a corner because on an unfamiliar file it is the first thing
+# worth checking — which columns were matched, which were derived, and which
+# dimensions the file therefore cannot support.
+with st.expander("How this file was read"):
+    render_ingestion_report(ingestion_report)
 
-        results = []
-        progress = st.progress(0.0)
-        status = st.empty()
-        for i, account_id in enumerate(selected, start=1):
-            status.write(f"Investigating {account_id} ({i}/{len(selected)})…")
-            try:
-                pack = build_evidence_pack(validation_df, account_id)
-                verdict, error = run_agent_with_error_handling(
-                    client, validation_df, account_id, pack, model, provider
-                )
-                if error:
-                    results.append(score_error(account_id, key[account_id], error))
-                else:
-                    impact = compute_impact(pack, verdict)
-                    priority = prioritize(impact, verdict)
-                    report = assemble_report(account_id, pack, verdict, impact, priority)
-                    results.append(score_report(report, key[account_id]))
-            except Exception as e:  # a single bad account must not lose the whole run
-                results.append(score_error(account_id, key[account_id], str(e)))
-            progress.progress(i / len(selected))
-        status.empty()
-        st.session_state["validation_results"] = results
+st.divider()
 
-    results = st.session_state.get("validation_results")
-    if results:
-        summary = summarize(results)
 
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Accuracy", f"{summary['accuracy'] * 100:.0f}%",
-                    f"{summary['matched']}/{summary['total']} accounts")
-        # Broken out by expected outcome because one overall number cannot
-        # distinguish a discriminating agent from one that flags everything.
-        for column, outcome in zip((col2, col3, col4), ("FLAG", "NO FLAG", "DEFER")):
-            bucket = summary["by_expected_outcome"].get(outcome)
-            if bucket:
-                column.metric(
-                    f"Expected {outcome}", f"{bucket['accuracy'] * 100:.0f}%",
-                    f"{bucket['matched']}/{bucket['total']}",
-                )
+# --- 1. The evidence -------------------------------------------------------
 
-        if summary["errors"]:
-            st.warning(f"{summary['errors']} account(s) failed to produce a verdict — counted as misses.")
+st.markdown("### 1 · What this account has been doing")
+st.caption(
+    "Every order this account has placed, rolled up month by month. The strip below is a "
+    "quick read across the six things that can quietly go wrong — how much they spend, what "
+    "it earns you, how hard you are discounting, what they buy, and how they order. A "
+    "problem usually shows up in one of these long before it shows up in the topline."
+)
+pack = render_account_dashboard(df, account_id, pack=cached_evidence_pack(df, account_id))
 
-        table = pd.DataFrame([
-            {
-                "": "✅" if r["outcome_match"] else "❌",
-                "Account": r["account_id"],
-                "Name": r["account_name"],
-                "Archetype": r["archetype"],
-                "Expected": r["expected_verdict_text"],
-                "Agent said": r["actual_outcome"],
-                "Exp. confidence": r["expected_confidence"],
-                "Confidence": r["actual_confidence"],
-                "Leak dimensions": ", ".join(r["leak_dimensions"]),
-                "Categories": ", ".join(r["attributed_categories"]),
-                "Priority": r["priority"],
-            }
-            for r in results
-        ])
-        st.dataframe(table, width="stretch", hide_index=True)
+st.divider()
 
-        if summary["mismatches"]:
-            st.subheader("Mismatches")
-            for line in summary["mismatches"]:
-                st.write(f"- {line}")
 
-        st.subheader("Per-account detail")
-        for r in results:
-            icon = "✅" if r["outcome_match"] else "❌"
-            with st.expander(f"{icon} {r['account_id']} — {r['account_name']} ({r['archetype']})"):
-                st.write(f"**What this account tests:** {r['what_it_tests']}")
-                st.write(f"**What is really happening:** {r['what_is_really_happening']}")
-                st.write(
-                    f"**Expected:** {r['expected_verdict_text']} "
-                    f"({r['expected_confidence']}, {r['expected_leak_type']})"
-                )
-                if r.get("error"):
-                    st.error(f"Run failed: {r['error']}")
-                else:
-                    st.write(
-                        f"**Agent said:** {r['actual_outcome']} "
-                        f"({r['actual_confidence']} confidence, {r['actual_temporary_or_structural']})"
-                    )
-                    st.write(r["narrative"])
-                    if r["cited_evidence"]:
-                        st.write("**Cited evidence:**")
-                        for fact in r["cited_evidence"]:
-                            st.write(f"- {fact}")
+# --- 2. The AI verdict -----------------------------------------------------
 
-        st.download_button(
-            "Download scorecard (JSON)",
-            data=json.dumps({"summary": summary, "results": results}, indent=2),
-            file_name="answer_key_scorecard.json",
-            mime="application/json",
+st.markdown("### 2 · Is anything actually going wrong?")
+st.caption(
+    "An AI analyst reads exactly the figures above and gives you a straight call: real "
+    "revenue leakage, a temporary dip, or nothing to worry about — and it will say so "
+    "plainly when the evidence is too thin to decide either way. Every number it quotes "
+    "comes from the analysis above, so you can check its reasoning rather than take it on "
+    "trust."
+)
+
+fingerprint = cache.account_fingerprint(df, account_id)
+
+# The control row keeps the SAME three columns and the SAME single button in
+# every state — only the button's enabled-ness and the status text change.
+# Swapping the button's label and type between "Run" and "Re-run" made the row
+# reflow on every model switch, which read as the page flickering.
+choose, act, status = st.columns([1, 1, 2])
+
+with choose:
+    choice_label = st.radio(
+        "Model", list(MODEL_CHOICES), horizontal=True,
+        help="\n\n".join(f"**{k}** — {v['note']}" for k, v in MODEL_CHOICES.items()),
+    )
+
+model_id = MODEL_CHOICES[choice_label]["model"]
+
+# Reuse silently when this exact account, model and data have been analysed
+# before. Changing any of the three is a genuine miss and runs fresh.
+report = cache.load(fingerprint, account_id, model_id)
+
+with act:
+    st.write("")
+    investigate_clicked = st.button(
+        "Investigate with AI",
+        type="primary",
+        use_container_width=True,
+        disabled=report is not None,
+        help="Already analysed with this model — the saved result is shown below."
+        if report is not None else "Runs the single LLM call for this account.",
+    )
+
+with status:
+    st.write("")
+    if report is not None:
+        st.caption(
+            f"Already reviewed by the **{choice_label.lower()}** model — this is the saved result."
         )
-    else:
-        st.info("Select accounts and click **Run validation** to score the agent against the Answer Key.")
 
-elif mode == "View offline demo":
-    cache_files = sorted(DEMO_CACHE_DIR.glob("*.json")) if DEMO_CACHE_DIR.exists() else []
-    if not cache_files:
-        st.error(f"No cached demo reports found in {DEMO_CACHE_DIR}. Run scripts/generate_demo_cache.py first.")
+if report is None and investigate_clicked:
+    with st.spinner(f"Investigating {account_id} with the {choice_label.lower()} model…"):
+        report, error = investigate_account(df, account_id, pack, choice_label)
+    if error:
+        st.error(error)
+        st.info("The evidence above is unaffected — only the model step failed.")
+        report = None
     else:
-        choice = st.selectbox("Cached archetype", [f.stem for f in cache_files])
-        report = json.loads((DEMO_CACHE_DIR / f"{choice}.json").read_text())
-        render_report(report, cached=True)
+        cache.save(fingerprint, account_id, model_id, report)
+        st.rerun()
 
+if report:
+    render_verdict(report, pack=pack)
 else:
-    uploaded = st.file_uploader("Upload a transaction CSV", type=["csv"])
-    if uploaded is not None:
-        try:
-            df, ingestion_report = ingest(uploaded)
-        except IngestionError as e:
-            st.error(f"Could not process this file: {e}")
-            st.stop()
+    st.info(f"{account_id} has not been reviewed yet — click **Investigate with AI** above.")
 
-        with st.expander("Ingestion report"):
-            st.json(ingestion_report)
+st.divider()
 
-        account_ids = sorted(df["account_id"].unique())
-        account_id = st.selectbox("Account to investigate", account_ids)
 
-        sufficiency = account_sufficiency(df).get(account_id)
-        if sufficiency:
-            st.caption(
-                f"Data sufficiency for {account_id}: **{sufficiency['label']}** "
-                f"({sufficiency['history_months']} months, {sufficiency['order_count']} orders, "
-                f"{sufficiency['category_count']} categories)"
-            )
+# --- 3. Accuracy check -----------------------------------------------------
 
-        if st.button("Run investigation", type="primary"):
-            with st.spinner("Running deterministic analysis (Stages 1-3)..."):
-                evidence_pack = build_evidence_pack(df, account_id)
+st.markdown("### 3 · How much should you trust that verdict?")
+st.caption(
+    "For this demo set, the right answer for every account was written down in advance and "
+    "kept away from the agent. Comparing the two shows you how reliable the verdict is — "
+    "which is what tells you how much weight to give it on a real account, where nobody "
+    "knows the answer yet."
+)
 
-            with st.expander("Evidence pack (what the agent sees)"):
-                st.json(evidence_pack)
+try:
+    answer_key = load_answer_key()
+except AnswerKeyUnavailable:
+    answer_key = None
 
-            with st.spinner(f"Running investigation agent (Stage 4, via {provider})..."):
-                try:
-                    client = get_live_client(provider, groq_model=model if provider == "Groq" else None)
-                except Exception as e:
-                    key_hint = "GROQ_API_KEY" if provider == "Groq" else "ANTHROPIC_API_KEY"
-                    st.error(
-                        f"Could not initialize the {provider} client: {e}. "
-                        f"Set {key_hint}, or switch to 'View offline demo' in the sidebar."
-                    )
-                    st.stop()
+key_row = (answer_key or {}).get(account_id)
 
-                verdict, error = run_agent_with_error_handling(client, df, account_id, evidence_pack, model, provider)
+if not using_reference or key_row is None:
+    st.caption(
+        "The Answer Key only covers the reference dataset's 18 accounts, so there is "
+        "nothing to score this account against."
+    )
+elif not report:
+    st.caption(
+        f"Run the investigation above and this will score it. "
+        f"This account is the **{key_row['archetype']}** case."
+    )
+    with st.expander("What this account is designed to test (spoiler)"):
+        st.markdown(f"**Tests:** {key_row['what_it_tests']}")
+        st.markdown(f"**Really happening:** {key_row['what_is_really_happening']}")
+else:
+    result = score_report(report, key_row)
 
-            if error:
-                st.error(error)
-                st.info(
-                    "Deterministic evidence (Stages 1-3) above is still valid and traceable — "
-                    "only the LLM reasoning step failed. Retry, or use 'View offline demo' in the sidebar."
-                )
-                st.stop()
-
-            impact = compute_impact(evidence_pack, verdict)
-            priority = prioritize(impact, verdict)
-            report = assemble_report(account_id, evidence_pack, verdict, impact, priority)
-            render_report(report)
+    # Full-width verdict line, then the detail beneath it. The previous
+    # two-column split put a short badge beside three long paragraphs, so the
+    # columns had wildly different heights and nothing lined up.
+    outcome_line = (
+        f"Expected **{result['expected_outcome']}** · agent said **{result['actual_outcome']}**"
+    )
+    if result["outcome_match"]:
+        st.success(f"**Correct.** {outcome_line}")
     else:
-        st.write("Upload a CSV to begin, or switch to 'View offline demo' in the sidebar.")
+        st.error(f"**Missed.** {outcome_line}")
+
+    facts = st.columns(2)
+    facts[0].markdown(f"**Archetype**  \n{result['archetype']}")
+    confidence_note = "not scored"
+    if result["confidence_match"] is not None:
+        mark = "matches" if result["confidence_match"] else "differs"
+        confidence_note = (
+            f"expected {result['expected_confidence']}, "
+            f"got {result['actual_confidence']} — {mark}"
+        )
+    facts[1].markdown(f"**Confidence**  \n{confidence_note}")
+
+    st.markdown(f"**What this account tests**  \n{result['what_it_tests']}")
+    st.markdown(f"**What is really happening**  \n{result['what_is_really_happening']}")
+
+    st.caption(
+        "The Answer Key only ever scores a finished verdict — it is never shown to the "
+        "agent. It exists for this dataset alone; an unseen file will have none."
+    )

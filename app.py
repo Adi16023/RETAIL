@@ -45,6 +45,7 @@ from pipeline.compare import (
     build_comparison_digest,
     compare_accounts,
 )
+from pipeline.decide import DecisionError, build_decision_input, price_options, recommend
 from pipeline.evidence import build_evidence_pack
 from pipeline.impact import compute_impact
 from pipeline.ingest import IngestionError, ingest
@@ -53,6 +54,8 @@ from pipeline.report import assemble_report
 from pipeline.timeline import PRESENCE_ONLY_DIMENSIONS, build_timeline
 from ui import cache
 from ui.compare import render_comparison
+from ui.decide import render_decision, render_early_warning, render_no_lever, render_options
+from ui.palette import active
 from ui.dashboard import render_account_dashboard
 from ui.verdict import render_verdict
 from validation.answer_key import AnswerKeyUnavailable, load_answer_key, score_report
@@ -232,6 +235,116 @@ def compare_selected_accounts(digest, choice_label):
         return None, f"The comparison did not come back in a usable shape: {e}"
     except Exception as e:
         return None, f"Unexpected error during comparison: {e}"
+
+
+def recommend_decision(decision_input, choice_label):
+    """Ask the adviser model what to do. Returns (decision, error).
+
+    Same provider handling as the other two call sites, so a missing key or
+    a rate limit reads identically wherever it happens.
+    """
+    spec = MODEL_CHOICES[choice_label]
+    provider, model = spec["provider"], spec["model"]
+    key_hint = "GROQ_API_KEY" if provider == "Groq" else "ANTHROPIC_API_KEY"
+
+    try:
+        client = get_live_client(provider, groq_model=model if provider == "Groq" else None)
+    except Exception as e:
+        return None, f"Could not initialize the model client: {e}. Set {key_hint} in .env."
+
+    error_module = __import__("groq") if provider == "Groq" else __import__("anthropic")
+    try:
+        return recommend(client, decision_input, model=model), None
+    except error_module.AuthenticationError:
+        return None, f"No valid API credentials for this model — set {key_hint} in .env."
+    except error_module.RateLimitError:
+        return None, "Rate limited by the model provider. Wait a moment and retry."
+    except error_module.APIConnectionError:
+        return None, "Could not reach the model provider (network issue)."
+    except error_module.APIStatusError as e:
+        return None, f"Model provider error ({e.status_code}): {e.message}"
+    except DecisionError as e:
+        return None, f"The recommendation did not come back in a usable shape: {e}"
+    except Exception as e:
+        return None, f"Unexpected error while drafting the recommendation: {e}"
+
+
+@st.cache_data(show_spinner=False)
+def cached_price_options(report_json: str) -> list:
+    """Priced interventions for a finished report. Free — deterministic
+    arithmetic — but it runs on every rerun, so it is cached like the rest."""
+    return price_options((json.loads(report_json)).get("evidence") or {})
+
+
+def render_intervention(report: dict, fingerprint: str, account_id: str,
+                        model_id: str, choice_label: str) -> None:
+    """The priced options, then an optional written recommendation.
+
+    The calculator renders first and never calls a model: a manager can size
+    every option, and decide, with no key configured and no network. The
+    recommendation is an explicit button on top, so a failure there cannot
+    take the numbers down with it.
+
+    The recommendation is offered even when nothing could be priced. A leak
+    the pipeline cannot size honestly — an account splitting its orders, say,
+    where nothing has actually been lost yet — still deserves a decision; it
+    just does not get a rupee figure attached to it.
+    """
+    st.markdown("### What should we do about it?")
+
+    # Nothing to decide on an account that is fine, or one nobody was
+    # willing to call: acting on a deferred verdict is worse than waiting.
+    if report.get("verdict") == "healthy" or report.get("defer"):
+        render_no_lever(report)
+        return
+
+    options = cached_price_options(json.dumps(report))
+    colors = active()
+
+    if options:
+        chosen = render_options(options, colors)
+        target = chosen["discount_target_pct"] if "discount_target_pct" in chosen else float(
+            chosen["share_recovered_pct"]
+        )
+        lever = chosen["lever"]
+    else:
+        render_early_warning(report)
+        chosen, target, lever = None, 0.0, "unpriced"
+
+    decision = cache.load_decision(fingerprint, account_id, model_id, f"{lever}-{target}")
+
+    act, note = st.columns([1, 3])
+    with act:
+        draft_clicked = st.button(
+            "Draft the case",
+            use_container_width=True,
+            disabled=decision is not None,
+            help="Already drafted for this option — the saved recommendation is shown below."
+            if decision is not None
+            else "One model call: picks the play, argues for it, and writes the brief.",
+        )
+    with note:
+        st.write("")
+        st.caption(
+            "Optional. The figures above are already yours to act on — this adds the commercial "
+            "judgement and the words to use."
+            if options else
+            "Optional. Adds the commercial judgement: which lever fits, what to do, who owns it."
+        )
+
+    if decision is None and draft_clicked:
+        with st.spinner("Drafting the recommendation…"):
+            decision_input = build_decision_input(report, options)
+            decision, decision_error = recommend_decision(decision_input, choice_label)
+        if decision_error:
+            st.warning(f"{decision_error} Anything above is unaffected.")
+            decision = None
+        else:
+            cache.save_decision(fingerprint, account_id, model_id, f"{lever}-{target}", decision)
+            st.rerun()
+
+    if decision:
+        render_decision(decision, colors)
 
 
 DIMENSION_LABELS = {
@@ -500,6 +613,7 @@ if report is None and investigate_clicked:
 
 if report:
     render_verdict(report, pack=pack)
+    render_intervention(report, fingerprint, account_id, model_id, choice_label)
     render_pdf_download(report)
 else:
     st.info(f"{account_id} has not been reviewed yet — click **Investigate with AI** above.")

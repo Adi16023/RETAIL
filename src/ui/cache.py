@@ -111,3 +111,37 @@ def save_comparison(fingerprint: str, model: str, result: dict) -> None:
     _comparison_path(fingerprint, model).write_text(
         json.dumps(result, indent=2), encoding="utf-8"
     )
+
+
+# --- Commercial recommendations --------------------------------------------
+#
+# One more key than an investigation: the recommendation is made FOR a chosen
+# intervention, so picking a different discount target is a different
+# question and must miss the cache. Dragging the slider back to a target
+# already asked about should not spend a second call.
+
+DECISION_DIR = CACHE_DIR.parent / "decisions"
+
+
+def _decision_path(fingerprint: str, account_id: str, model: str, target: str | float) -> Path:
+    safe_model = "".join(c if c.isalnum() else "-" for c in model)
+    target = "".join(c if c.isalnum() else "-" for c in str(target))
+    return DECISION_DIR / f"{account_id}_{safe_model}_{target}_{fingerprint}.json"
+
+
+def load_decision(fingerprint: str, account_id: str, model: str, target: str | float) -> dict | None:
+    path = _decision_path(fingerprint, account_id, model, target)
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def save_decision(fingerprint: str, account_id: str, model: str, target: str | float,
+                  decision: dict) -> None:
+    DECISION_DIR.mkdir(parents=True, exist_ok=True)
+    _decision_path(fingerprint, account_id, model, target).write_text(
+        json.dumps(decision, indent=2), encoding="utf-8"
+    )

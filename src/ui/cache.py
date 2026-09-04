@@ -67,3 +67,47 @@ def clear(fingerprint: str, account_id: str, model: str) -> None:
 
 def count() -> int:
     return len(list(CACHE_DIR.glob("*.json"))) if CACHE_DIR.exists() else 0
+
+
+# --- Cross-account comparisons ---------------------------------------------
+#
+# Same reasoning as above, one key wider: a comparison is also one paid call,
+# and it is determined by the SET of accounts read together, the model, and
+# those accounts' data. Adding or removing a single account asks a different
+# question and must miss the cache; re-rendering the page must not.
+
+COMPARISON_DIR = CACHE_DIR.parent / "comparisons"
+
+
+def selection_fingerprint(df: pd.DataFrame, account_ids: list[str]) -> str:
+    """Stable hash of a whole selection: which accounts, and their rows.
+
+    Built from the per-account fingerprints rather than from one hash of the
+    concatenated rows, so that editing one account's data invalidates every
+    comparison that account took part in, and no others.
+    """
+    ids = sorted(set(account_ids))
+    joined = "|".join(f"{a}:{account_fingerprint(df, a)}" for a in ids)
+    return hashlib.sha1(joined.encode()).hexdigest()[:16]
+
+
+def _comparison_path(fingerprint: str, model: str) -> Path:
+    safe_model = "".join(c if c.isalnum() else "-" for c in model)
+    return COMPARISON_DIR / f"compare_{safe_model}_{fingerprint}.json"
+
+
+def load_comparison(fingerprint: str, model: str) -> dict | None:
+    path = _comparison_path(fingerprint, model)
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def save_comparison(fingerprint: str, model: str, result: dict) -> None:
+    COMPARISON_DIR.mkdir(parents=True, exist_ok=True)
+    _comparison_path(fingerprint, model).write_text(
+        json.dumps(result, indent=2), encoding="utf-8"
+    )

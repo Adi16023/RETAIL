@@ -103,7 +103,7 @@ def render_comparison(result: dict, digest: dict) -> None:
                     {"Account": label(row["account_id"]), "What's happening": row["business_read"]}
                     for row in per_account
                 ]),
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
             )
 

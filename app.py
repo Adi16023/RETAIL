@@ -200,7 +200,7 @@ def render_pdf_download(report: dict) -> None:
         file_name=pdf_filename(report, PDF_DEPTH),
         mime="application/pdf",
         type="primary",
-        use_container_width=True,
+        width="stretch",
     )
     get.caption(f"{len(pdf_bytes) / 1024:.0f} KB")
 
@@ -318,7 +318,7 @@ def render_intervention(report: dict, fingerprint: str, account_id: str,
     with act:
         draft_clicked = st.button(
             "Draft the case",
-            use_container_width=True,
+            width="stretch",
             disabled=decision is not None,
             help="Already drafted for this option — the saved recommendation is shown below."
             if decision is not None
@@ -390,7 +390,7 @@ def render_ingestion_report(report: dict) -> None:
             }
             for field, source_column in (report.get("column_mapping") or {}).items()
         ]),
-        use_container_width=True, hide_index=True,
+        width="stretch", hide_index=True,
     )
 
     for note in report.get("fields_inferred", []):
@@ -472,7 +472,7 @@ with chooser:
     # whole page with an uploader, which made one screen behave like two. The
     # reference dataset is simply the default, and a file dropped here takes
     # over in place.
-    with st.popover("Data source", use_container_width=True):
+    with st.popover("Data source", width="stretch"):
         uploaded_file = st.file_uploader("Use your own transaction file", type=["csv", "xlsx"])
         st.caption(
             "Leave this empty to use the reference dataset — the official Quessathon "
@@ -591,7 +591,7 @@ with act:
     investigate_clicked = st.button(
         "Investigate with AI",
         type="primary",
-        use_container_width=True,
+        width="stretch",
         disabled=report is not None,
         help="Already analysed with this model — the saved result is shown below."
         if report is not None else "Runs the single LLM call for this account.",
@@ -761,7 +761,7 @@ else:
         compare_clicked = st.button(
             "Compare with AI",
             type="primary",
-            use_container_width=True,
+            width="stretch",
             disabled=comparison is not None,
             help="Already compared — the saved result is shown below."
             if comparison is not None

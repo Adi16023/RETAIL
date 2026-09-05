@@ -252,7 +252,7 @@ def _dimension_table(pack: dict) -> None:
     st.dataframe(
         [{"Dimension": d, "Status": s.replace("_", " "), "Movement": m, "Real, or noise?": n}
          for d, s, m, n in rows],
-        use_container_width=True, hide_index=True,
+        width="stretch", hide_index=True,
     )
     st.caption(
         "\"Real, or noise?\" shuffles this account's own months and asks how often chance alone "
@@ -387,7 +387,7 @@ def _timeline_tab(report: dict) -> None:
             }
             for event in timeline
         ]),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
     st.caption(
@@ -495,7 +495,7 @@ def _opinion_tab(report: dict, colors: dict) -> None:
     st.altair_chart(
         (bars + text).properties(height=110, background=colors["surface"], padding={"left": 0, "right": 40})
         .configure_view(strokeWidth=0),
-        use_container_width=True,
+        width="stretch",
     )
 
     if report.get("_opinion_after_the_fact"):
@@ -538,7 +538,7 @@ def _opinion_tab(report: dict, colors: dict) -> None:
             "Effect": f"{d['effect_on_leaning'] * 100:+.0f} pts",
             "Reads as": d["direction"],
         } for d in drivers]
-        st.dataframe(table, use_container_width=True, hide_index=True)
+        st.dataframe(table, width="stretch", hide_index=True)
         if opinion.get("drivers_note"):
             st.caption(opinion["drivers_note"])
 

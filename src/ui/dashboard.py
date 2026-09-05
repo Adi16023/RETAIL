@@ -148,7 +148,7 @@ def _render_trend_tab(pack: dict, frame: pd.DataFrame, colors: dict) -> None:
             gap_months=(quality.get("gaps") or {}).get("months_with_no_orders"),
             outlier_months=[o["month"] for o in (quality.get("outlier_months") or [])],
         ),
-        use_container_width=True,
+        width="stretch",
     )
     legend = ["Shaded band = the recent window every comparison is made against."]
     if (quality.get("outlier_months") or []):
@@ -162,7 +162,7 @@ def _render_trend_tab(pack: dict, frame: pd.DataFrame, colors: dict) -> None:
     margin = rate_chart(frame, colors, "margin_pct", "Margin rate")
     if margin is not None:
         st.markdown("**Margin rate by month**")
-        st.altair_chart(margin, use_container_width=True)
+        st.altair_chart(margin, width="stretch")
         # The pairing that makes the hidden leak visible: flat line above,
         # falling line below. Deliberately two charts, never a dual axis.
         st.caption(
@@ -184,7 +184,7 @@ def _render_mix_tab(pack: dict, df: pd.DataFrame, account_id: str,
             "Show as share of revenue", value=True,
             help="Share exposes a mix shift that a flat total would hide.",
         )
-        st.altair_chart(tier_mix_chart(long, colors, normalize=as_share), use_container_width=True)
+        st.altair_chart(tier_mix_chart(long, colors, normalize=as_share), width="stretch")
 
         tier = pack.get("tier_mix") or {}
         change = tier.get("high_tier_share_change_pp")
@@ -202,7 +202,7 @@ def _render_mix_tab(pack: dict, df: pd.DataFrame, account_id: str,
     if chart is None:
         st.info("Not enough history to compare a baseline window against a recent one.")
     else:
-        st.altair_chart(chart, use_container_width=True)
+        st.altair_chart(chart, width="stretch")
         defected = [c for c in pack["category_changes"] if c["defected"]]
         if defected:
             for entry in defected:
@@ -219,7 +219,7 @@ def _render_pricing_tab(pack: dict, frame: pd.DataFrame, colors: dict) -> None:
         return
 
     st.markdown("**Average discount by month**")
-    st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart, width="stretch")
     st.caption(
         "Weighted by list value, so a discount on a large high-value line counts for more "
         "than the same discount on one cheap line."
@@ -239,12 +239,12 @@ def _render_orders_tab(pack: dict, frame: pd.DataFrame, colors: dict) -> None:
     left, right = st.columns(2)
     with left:
         st.markdown("**Orders per month**")
-        st.altair_chart(order_chart(frame, colors, "orders", "Orders"), use_container_width=True)
+        st.altair_chart(order_chart(frame, colors, "orders", "Orders"), width="stretch")
     with right:
         st.markdown("**Lines per order**")
         st.altair_chart(
             order_chart(frame, colors, "lines_per_order", "Lines per order"),
-            use_container_width=True,
+            width="stretch",
         )
 
     pattern = pack.get("order_pattern") or {}
@@ -352,7 +352,7 @@ def _render_table_tab(frame: pd.DataFrame) -> None:
             table[percent_column] = table[percent_column] * 100
 
     st.dataframe(
-        table, use_container_width=True, hide_index=True,
+        table, width="stretch", hide_index=True,
         column_config={
             "Revenue": st.column_config.NumberColumn(format="%.0f"),
             "Margin": st.column_config.NumberColumn(format="%.0f"),

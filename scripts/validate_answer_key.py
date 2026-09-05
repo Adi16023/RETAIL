@@ -29,6 +29,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(REPO_ROOT / ".env")
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+from ml.predict import attach_model_opinion
 from pipeline.agent import DEFAULT_MODEL
 from pipeline.evidence import build_evidence_pack
 from pipeline.impact import compute_impact
@@ -89,7 +90,7 @@ def main() -> int:
             print(f"  {account_id}: not in the answer key, skipped", file=sys.stderr)
             continue
         try:
-            pack = build_evidence_pack(df, account_id)
+            pack = attach_model_opinion(build_evidence_pack(df, account_id))
             from pipeline.agent import investigate
             verdict = investigate(client, df, account_id, pack, model=call_model)
             impact = compute_impact(pack, verdict)

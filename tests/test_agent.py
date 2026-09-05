@@ -26,6 +26,7 @@ def a_verdict(**overrides):
         "narrative": f"{DEFECTED_CATEGORY} stopped completely while other lines continued.",
         "recommended_actions": [f"Reach out to the account owner about {DEFECTED_CATEGORY}."],
         "data_needed_if_deferring": [],
+        "model_opinion_response": "",
     }
     v.update(overrides)
     return v

@@ -1,0 +1,361 @@
+{
+  "trained_at": "2026-09-05 04:03",
+  "train_dir": "data\\synthetic\\train_42",
+  "n_train": 2989,
+  "class_counts": {
+    "NO_FLAG": 1537,
+    "FLAG": 1156,
+    "DEFER": 296
+  },
+  "features": [
+    "history_months",
+    "order_count",
+    "category_count",
+    "sufficiency_score",
+    "has_margin",
+    "has_discount",
+    "has_tier",
+    "rev_pct_change",
+    "rev_cv",
+    "rev_slope_pct_mo",
+    "rev_h1_h2_pct",
+    "rev_cp_detected",
+    "rev_cp_pct_decline",
+    "rev_cp_recovered",
+    "rev_cp_sustained_months",
+    "season_confirmed",
+    "season_dip_months",
+    "season_echo_months",
+    "dip_episodes",
+    "dip_ongoing",
+    "dip_recovered",
+    "margin_base_pct",
+    "margin_recent_pct",
+    "margin_change_pp",
+    "disc_base_pct",
+    "disc_recent_pct",
+    "disc_change_pp",
+    "high_tier_base",
+    "high_tier_recent",
+    "high_tier_change_pp",
+    "cats_with_changepoint",
+    "cats_defected",
+    "defected_baseline_share",
+    "max_cat_pct_decline",
+    "order_freq_pct_change",
+    "basket_width_pct_change",
+    "aov_pct_change",
+    "gap_months",
+    "gap_share",
+    "outlier_months",
+    "max_outlier_multiple",
+    "return_lines",
+    "manager_changed",
+    "p_revenue",
+    "p_revenue_halves",
+    "p_revenue_trend",
+    "stat_revenue",
+    "stat_revenue_trend",
+    "sig_revenue",
+    "p_margin",
+    "p_margin_halves",
+    "p_margin_trend",
+    "stat_margin",
+    "stat_margin_trend",
+    "sig_margin",
+    "p_discount",
+    "p_discount_halves",
+    "p_discount_trend",
+    "stat_discount",
+    "stat_discount_trend",
+    "sig_discount",
+    "p_tier_mix",
+    "p_tier_mix_halves",
+    "p_tier_mix_trend",
+    "stat_tier_mix",
+    "stat_tier_mix_trend",
+    "sig_tier_mix",
+    "p_order_frequency",
+    "p_order_frequency_halves",
+    "p_order_frequency_trend",
+    "stat_order_frequency",
+    "stat_order_frequency_trend",
+    "sig_order_frequency",
+    "p_basket_width",
+    "p_basket_width_halves",
+    "p_basket_width_trend",
+    "stat_basket_width",
+    "stat_basket_width_trend",
+    "sig_basket_width"
+  ],
+  "model": "HistGradientBoostingClassifier",
+  "params": {
+    "categorical_features": "from_dtype",
+    "class_weight": null,
+    "early_stopping": true,
+    "interaction_cst": null,
+    "l2_regularization": 1.0,
+    "learning_rate": 0.05,
+    "loss": "log_loss",
+    "max_bins": 255,
+    "max_depth": null,
+    "max_features": 1.0,
+    "max_iter": 600,
+    "max_leaf_nodes": 15,
+    "min_samples_leaf": 20,
+    "monotonic_cst": null,
+    "n_iter_no_change": 30,
+    "random_state": 0,
+    "scoring": "loss",
+    "tol": 1e-07,
+    "validation_fraction": 0.15,
+    "verbose": 0,
+    "warm_start": false
+  },
+  "cross_validation": {
+    "n": 2989,
+    "accuracy": 0.790565406490465,
+    "per_class_recall": {
+      "FLAG": 0.6695501730103807,
+      "NO_FLAG": 0.8549121665582303,
+      "DEFER": 0.9290540540540541
+    },
+    "confusion": [
+      [
+        774,
+        351,
+        31
+      ],
+      [
+        196,
+        1314,
+        27
+      ],
+      [
+        14,
+        7,
+        275
+      ]
+    ],
+    "misses": []
+  },
+  "held_out_synthetic": {
+    "n": 798,
+    "accuracy": 0.8057644110275689,
+    "per_class_recall": {
+      "FLAG": 0.7180232558139535,
+      "NO_FLAG": 0.8668407310704961,
+      "DEFER": 0.9014084507042254
+    },
+    "confusion": [
+      [
+        247,
+        89,
+        8
+      ],
+      [
+        45,
+        332,
+        6
+      ],
+      [
+        3,
+        4,
+        64
+      ]
+    ],
+    "misses": 155
+  },
+  "feature_importance": [
+    {
+      "feature": "history_months",
+      "importance": 0.2734
+    },
+    {
+      "feature": "basket_width_pct_change",
+      "importance": 0.0193
+    },
+    {
+      "feature": "aov_pct_change",
+      "importance": 0.0172
+    },
+    {
+      "feature": "disc_change_pp",
+      "importance": 0.0151
+    },
+    {
+      "feature": "stat_basket_width",
+      "importance": 0.0136
+    },
+    {
+      "feature": "stat_revenue_trend",
+      "importance": 0.0101
+    },
+    {
+      "feature": "stat_basket_width_trend",
+      "importance": 0.0079
+    },
+    {
+      "feature": "p_tier_mix",
+      "importance": 0.0067
+    },
+    {
+      "feature": "stat_revenue",
+      "importance": 0.0063
+    },
+    {
+      "feature": "defected_baseline_share",
+      "importance": 0.0062
+    },
+    {
+      "feature": "margin_change_pp",
+      "importance": 0.0061
+    },
+    {
+      "feature": "cats_defected",
+      "importance": 0.0048
+    },
+    {
+      "feature": "stat_order_frequency_trend",
+      "importance": 0.0039
+    },
+    {
+      "feature": "p_revenue",
+      "importance": 0.0038
+    },
+    {
+      "feature": "has_margin",
+      "importance": 0.0038
+    }
+  ],
+  "held_out_by_scenario": {
+    "slow_bleed": 0.6,
+    "broad_decline": 0.614,
+    "category_defection": 0.687,
+    "mix_collapse": 0.701,
+    "borderline_drift": 0.73,
+    "bulk_month": 0.778,
+    "fragmentation": 0.833,
+    "discount_creep": 0.84,
+    "seasonal_dip": 0.86,
+    "premiumisation": 0.868,
+    "recovered_dip": 0.882,
+    "skipped_months": 0.895,
+    "returns_heavy": 0.9,
+    "thin_history": 0.901,
+    "healthy": 0.906,
+    "growth": 0.958
+  },
+  "held_out_mature_flag_recall": {
+    "recall": 0.85,
+    "n": 193
+  },
+  "meridian": {
+    "correct": 17,
+    "n": 18,
+    "per_class_recall": {
+      "FLAG": 0.8333333333333334,
+      "NO_FLAG": 1.0,
+      "DEFER": 1.0
+    },
+    "misses": [
+      {
+        "account_id": "ACC-104",
+        "expected": "FLAG",
+        "predicted": "NO_FLAG"
+      }
+    ],
+    "probabilities": {
+      "ACC-101": {
+        "DEFER": 0.0,
+        "FLAG": 0.997,
+        "NO_FLAG": 0.003
+      },
+      "ACC-102": {
+        "DEFER": 0.001,
+        "FLAG": 0.372,
+        "NO_FLAG": 0.627
+      },
+      "ACC-103": {
+        "DEFER": 0.0,
+        "FLAG": 0.02,
+        "NO_FLAG": 0.979
+      },
+      "ACC-104": {
+        "DEFER": 0.0,
+        "FLAG": 0.49,
+        "NO_FLAG": 0.509
+      },
+      "ACC-105": {
+        "DEFER": 0.0,
+        "FLAG": 0.024,
+        "NO_FLAG": 0.976
+      },
+      "ACC-106": {
+        "DEFER": 0.0,
+        "FLAG": 0.964,
+        "NO_FLAG": 0.036
+      },
+      "ACC-107": {
+        "DEFER": 0.0,
+        "FLAG": 0.995,
+        "NO_FLAG": 0.005
+      },
+      "ACC-108": {
+        "DEFER": 0.0,
+        "FLAG": 0.968,
+        "NO_FLAG": 0.032
+      },
+      "ACC-109": {
+        "DEFER": 0.972,
+        "FLAG": 0.014,
+        "NO_FLAG": 0.014
+      },
+      "ACC-110": {
+        "DEFER": 0.0,
+        "FLAG": 0.091,
+        "NO_FLAG": 0.909
+      },
+      "ACC-111": {
+        "DEFER": 0.001,
+        "FLAG": 0.292,
+        "NO_FLAG": 0.708
+      },
+      "ACC-112": {
+        "DEFER": 0.001,
+        "FLAG": 0.85,
+        "NO_FLAG": 0.149
+      },
+      "ACC-113": {
+        "DEFER": 0.001,
+        "FLAG": 0.135,
+        "NO_FLAG": 0.864
+      },
+      "ACC-114": {
+        "DEFER": 0.001,
+        "FLAG": 0.288,
+        "NO_FLAG": 0.712
+      },
+      "ACC-115": {
+        "DEFER": 0.0,
+        "FLAG": 0.125,
+        "NO_FLAG": 0.875
+      },
+      "ACC-116": {
+        "DEFER": 0.0,
+        "FLAG": 0.031,
+        "NO_FLAG": 0.969
+      },
+      "ACC-117": {
+        "DEFER": 0.0,
+        "FLAG": 0.08,
+        "NO_FLAG": 0.92
+      },
+      "ACC-118": {
+        "DEFER": 0.0,
+        "FLAG": 0.056,
+        "NO_FLAG": 0.944
+      }
+    }
+  }
+}

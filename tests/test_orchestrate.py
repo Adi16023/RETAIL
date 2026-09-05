@@ -38,7 +38,7 @@ def a_verdict(**overrides) -> dict:
         "confidence": "high", "defer": False, "leak_dimensions": [],
         "attributed_categories": [], "cited_facts": ["placeholder"],
         "narrative": "placeholder", "recommended_actions": [],
-        "data_needed_if_deferring": [],
+        "data_needed_if_deferring": [], "model_opinion_response": "",
     }
     verdict.update(overrides)
     return verdict

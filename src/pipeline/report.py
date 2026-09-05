@@ -16,6 +16,33 @@ from __future__ import annotations
 
 from .timeline import build_timeline
 
+# The verdict enum in the model's own three-way vocabulary. `defer` wins: an
+# agent that says leakage_detected but defers has declined to make the call.
+_VERDICT_OUTCOME = {"leakage_detected": "FLAG", "healthy": "NO_FLAG", "insufficient_data": "DEFER"}
+
+
+def verdict_outcome(verdict: dict) -> str:
+    if verdict.get("defer"):
+        return "DEFER"
+    return _VERDICT_OUTCOME.get(verdict.get("verdict"), "UNKNOWN")
+
+
+def model_agreement(evidence_pack: dict, verdict: dict) -> dict | None:
+    """Did the LLM land where the classifier leaned? Computed here, from the
+    two outcomes, so the report never has to trust the model's own account of
+    whether it agreed with the second opinion."""
+    opinion = evidence_pack.get("model_opinion") or {}
+    if not opinion.get("available"):
+        return None
+    agent = verdict_outcome(verdict)
+    return {
+        "agrees": agent == opinion["leaning_outcome"],
+        "agent_outcome": agent,
+        "model_outcome": opinion["leaning_outcome"],
+        "model_decisive": bool(opinion.get("decisive")),
+        "agent_response": (verdict.get("model_opinion_response") or "").strip(),
+    }
+
 
 def assemble_report(account_id: str, evidence_pack: dict, verdict: dict, impact: dict, priority: dict) -> dict:
     return {
@@ -39,6 +66,11 @@ def assemble_report(account_id: str, evidence_pack: dict, verdict: dict, impact:
         "prioritization": priority,
         "data_sufficiency": evidence_pack["data_sufficiency"],
         "analysis_dimensions": evidence_pack.get("analysis_dimensions"),
+        # The classifier's second opinion and whether the LLM agreed with it.
+        # Both come from the pack and the verdict enum — nothing here is the
+        # model's own description of itself.
+        "model_opinion": evidence_pack.get("model_opinion"),
+        "model_agreement": model_agreement(evidence_pack, verdict),
         # The deterministic case behind the verdict, kept with it: a dated
         # event log for reading, and the pack itself so every figure in any
         # rendering is traceable to the stage that computed it.

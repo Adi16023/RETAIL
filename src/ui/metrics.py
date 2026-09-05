@@ -17,6 +17,7 @@ import pandas as pd
 import streamlit as st
 
 from pipeline.changepoint import RECENT_MONTHS, full_month_index
+from pipeline.monthly import monthly_table
 
 
 # Cached because every widget interaction re-runs the whole Streamlit script.
@@ -27,84 +28,20 @@ from pipeline.changepoint import RECENT_MONTHS, full_month_index
 def monthly_frame(df: pd.DataFrame, account_id: str) -> pd.DataFrame:
     """One row per calendar month of this account's history.
 
-    Months with no orders are present with zeros rather than absent, so a gap
-    is visible as a gap instead of the line quietly jumping over it.
+    The numbers come from pipeline.monthly.monthly_table — the SAME table the
+    significance tests read — so a value on a chart, a value in the table
+    view, and the p-value beside a status can never disagree about what
+    happened in a given month. This function only adds display columns.
     """
-    account = df[df["account_id"] == account_id].copy()
+    account = df[df["account_id"] == account_id]
     if account.empty:
         return pd.DataFrame()
 
-    months = full_month_index(account)
-    account["month"] = account["date"].dt.to_period("M")
-    sales = account[account["is_return"] != 1] if "is_return" in account.columns else account
-
-    frame = pd.DataFrame({"period": months})
+    frame = monthly_table(account)
     frame["month"] = frame["period"].dt.to_timestamp()
-
-    def summed(source: pd.DataFrame, column: str) -> pd.Series:
-        if column not in source.columns:
-            return pd.Series(0.0, index=months)
-        return source.groupby("month")[column].sum().reindex(months, fill_value=0.0)
-
-    frame["revenue"] = summed(account, "revenue").to_numpy()
-
-    # A file with no margin column must leave these EMPTY, not zero. Summing an
-    # all-NaN column with fill_value=0 would draw a confident flat 0% margin
-    # line — asserting the account earns nothing, when the truth is we cannot
-    # see it. Absent and zero are different answers.
-    has_margin = "margin" in account.columns and account["margin"].notna().any()
-    if has_margin:
-        frame["margin"] = summed(account, "margin").to_numpy()
-        frame["margin_pct"] = [
-            (m / r) if r else None for m, r in zip(frame["margin"], frame["revenue"])
-        ]
-    else:
-        frame["margin"] = None
-        frame["margin_pct"] = None
-
-    orders = account.drop_duplicates("order_id")
-    sales_orders = sales.drop_duplicates("order_id")
-    frame["orders"] = (
-        sales_orders.groupby("month")["order_id"].nunique().reindex(months, fill_value=0).to_numpy()
-    )
-    frame["lines"] = account.groupby("month").size().reindex(months, fill_value=0).to_numpy()
-    frame["lines_per_order"] = [
-        (lines / orders_) if orders_ else None
-        for lines, orders_ in zip(frame["lines"], frame["orders"])
-    ]
-
-    # Discount weighted by gross list value, matching Stage 2 — an unweighted
-    # mean would let a handful of small orders mask creep on the lines that
-    # actually carry the revenue.
-    if "discount_pct" in sales.columns and sales["discount_pct"].notna().any():
-        priced = sales[sales["discount_pct"].notna()].copy()
-        if "list_price" in priced.columns and priced["list_price"].notna().any():
-            priced["weight"] = (priced["list_price"] * priced["quantity"]).abs()
-        else:
-            priced["weight"] = priced["revenue"].abs()
-        priced.loc[priced["weight"].isna() | (priced["weight"] <= 0), "weight"] = 1.0
-        priced["weighted"] = priced["discount_pct"] * priced["weight"]
-        grouped = priced.groupby("month")[["weight", "weighted"]].sum().reindex(months)
-        frame["discount_pct"] = [
-            (w / t) if (t and t > 0) else None
-            for w, t in zip(grouped["weighted"], grouped["weight"])
-        ]
-    else:
-        frame["discount_pct"] = None
-
-    if "tier" in account.columns and account["tier"].notna().any():
-        for tier in ("High", "Mid", "Low"):
-            frame[f"tier_{tier}"] = (
-                account[account["tier"] == tier].groupby("month")["revenue"].sum()
-                .reindex(months, fill_value=0.0).to_numpy()
-            )
-        total = frame[["tier_High", "tier_Mid", "tier_Low"]].sum(axis=1)
-        frame["high_tier_share"] = [
-            (h / t) if t else None for h, t in zip(frame["tier_High"], total)
-        ]
-
-    frame["window"] = ["Recent" if i >= len(months) - RECENT_MONTHS else "Baseline"
-                       for i in range(len(months))]
+    months = len(frame)
+    frame["window"] = ["Recent" if i >= months - RECENT_MONTHS else "Baseline"
+                       for i in range(months)]
     frame["has_orders"] = frame["orders"] > 0
     return frame
 

@@ -38,6 +38,7 @@ load_dotenv(REPO_ROOT / ".env")
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from pipeline.agent import AgentError
+from ml.predict import attach_model_opinion
 from pipeline.compare import (
     MAX_ACCOUNTS,
     MIN_ACCOUNTS,
@@ -199,7 +200,7 @@ def render_pdf_download(report: dict) -> None:
         file_name=pdf_filename(report, PDF_DEPTH),
         mime="application/pdf",
         type="primary",
-        use_container_width=True,
+        width="stretch",
     )
     get.caption(f"{len(pdf_bytes) / 1024:.0f} KB")
 
@@ -387,7 +388,7 @@ def render_ingestion_report(report: dict) -> None:
             }
             for field, source_column in (report.get("column_mapping") or {}).items()
         ]),
-        use_container_width=True, hide_index=True,
+        width="stretch", hide_index=True,
     )
 
     for note in report.get("fields_inferred", []):
@@ -443,7 +444,10 @@ def load_uploaded_data(file_bytes: bytes, filename: str):
 
 @st.cache_data(show_spinner=False)
 def cached_evidence_pack(df: pd.DataFrame, account_id: str) -> dict:
-    return build_evidence_pack(df, account_id)
+    # The classifier's second opinion rides along in the pack: deterministic,
+    # so it is computed once with the rest and shown both before and after
+    # the AI step. Without a trained model file it is simply `available: false`.
+    return attach_model_opinion(build_evidence_pack(df, account_id))
 
 
 @st.cache_data(show_spinner=False)
@@ -466,7 +470,7 @@ with chooser:
     # whole page with an uploader, which made one screen behave like two. The
     # reference dataset is simply the default, and a file dropped here takes
     # over in place.
-    with st.popover("Data source", use_container_width=True):
+    with st.popover("Data source", width="stretch"):
         uploaded_file = st.file_uploader("Use your own transaction file", type=["csv", "xlsx"])
         st.caption(
             "Leave this empty to use the reference dataset — the official Quessathon "
@@ -585,7 +589,7 @@ with act:
     investigate_clicked = st.button(
         "Investigate with AI",
         type="primary",
-        use_container_width=True,
+        width="stretch",
         disabled=report is not None,
         help="Already analysed with this model — the saved result is shown below."
         if report is not None else "Runs the single LLM call for this account.",
@@ -755,7 +759,7 @@ else:
         compare_clicked = st.button(
             "Compare with AI",
             type="primary",
-            use_container_width=True,
+            width="stretch",
             disabled=comparison is not None,
             help="Already compared — the saved result is shown below."
             if comparison is not None

@@ -18,6 +18,7 @@ otherwise would be exactly the false confidence this project exists to avoid.
 
 from __future__ import annotations
 
+import pandas as pd
 import streamlit as st
 
 from .palette import active
@@ -64,124 +65,75 @@ LEVER_INTRO = {
 }
 
 
-def _extra_metric(option: dict) -> tuple[str, str, str] | None:
-    """(label, value, help) for the figure that actually decides this lever."""
-    lever = option["lever"]
+def _outcome_column(lever: str) -> tuple[str, str]:
+    """(column heading, help) for the figure that decides this lever."""
     if lever == "price_recovery":
-        return (
-            "Volume you could lose",
-            f"{option['volume_that_could_be_lost_before_this_stops_paying_pct']}%",
-            "Before the intervention stops being worth doing. A tolerance, not a prediction.",
+        return "Volume you could lose", (
+            "How much volume could be lost before the move stops being worth making. "
+            "A tolerance for being wrong, not a prediction."
         )
     if lever == "win_back":
-        return (
-            "Room to concede on price",
-            f"{option['max_price_concession_pct']}%",
+        return "Room to concede", (
             "Discounting cuts price without cutting cost, so margin on won-back business runs "
-            "out exactly when the concession reaches the margin rate. Beyond this you are "
-            "buying the business at a loss.",
+            "out when the concession reaches the margin rate."
         )
-    if lever in ("mix_recovery", "margin_recovery"):
-        return (
-            "Margin rate after",
-            f"{option['resulting_margin_rate_pct']}%",
-            f"Up from {option['margin_rate_today_pct']}% today; it was "
-            f"{option['margin_rate_before_pct']}% before.",
-        )
-    return None
+    return "Margin rate after", "Where the margin rate lands if this is achieved."
 
 
-def render_options(options: list[dict], colors: dict) -> dict | None:
-    """The priced ladder for whichever lever fits this account.
+def render_options(options: list[dict], colors: dict) -> list[dict]:
+    """Every option this account has, side by side — what you'd do, and what
+    it gets you.
 
-    Deterministic throughout — this is the half that must keep working when
-    the model does not.
+    No slider. The reader is not here to run scenarios; they are here to be
+    told what to do. Showing the options together is what lets the
+    recommendation below be read as a choice among real alternatives rather
+    than as an assertion, and it is what makes "we are taking part of the
+    value, deliberately" legible.
     """
-    st.markdown("**What would it be worth to fix?**")
-
-    levers = []
-    for option in options:
-        if option["lever"] not in levers:
-            levers.append(option["lever"])
-
-    lever = levers[0]
-    if len(levers) > 1:
-        labels = {
-            next(o["lever_label"] for o in options if o["lever"] == name): name for name in levers
-        }
-        lever = labels[st.radio("Which lever?", list(labels), horizontal=True)]
-
-    scoped = [o for o in options if o["lever"] == lever]
+    lever = options[0]["lever"]
+    st.markdown("**What could be done, and what each would be worth**")
     st.caption(LEVER_INTRO.get(lever, ""))
 
-    labels = {f"{o['share_recovered_pct']}% — {o['option']}": o for o in scoped}
-    # A slider rather than a dropdown: the point is to feel the trade-off
-    # move, not to pick from a list.
-    choice = st.select_slider(
-        "How much would you aim to recover?",
-        options=list(labels),
-        value=list(labels)[len(labels) // 2],
+    heading, help_text = _outcome_column(lever)
+    rows = []
+    for option in options:
+        if lever == "price_recovery":
+            outcome = f"{option['volume_that_could_be_lost_before_this_stops_paying_pct']}%"
+        elif lever == "win_back":
+            outcome = f"{option['max_price_concession_pct']}%"
+        else:
+            outcome = f"{option.get('resulting_margin_rate_pct', '—')}%"
+        rows.append({
+            "What you'd do": option["option"][0].upper() + option["option"][1:],
+            "Margin back / month": _money(option["recovers_margin_per_month"]),
+            "Over 12 months": _money(option["recovers_margin_over_12_months"]),
+            heading: outcome,
+            "Fixes it?": "Yes" if option.get("restores_account_to_healthy") else "Partly",
+        })
+
+    st.dataframe(
+        pd.DataFrame(rows), use_container_width=True, hide_index=True,
+        column_config={heading: st.column_config.TextColumn(help=help_text),
+                       "Fixes it?": st.column_config.TextColumn(
+                           help="Whether the account still reads as leaking afterwards, on the "
+                                "same threshold the analysis itself uses. Recovering part of the "
+                                "value is a good outcome — it does not have to be all of it.")},
     )
-    option = labels[choice]
-
-    columns = st.columns(4)
-    if option["recovers_revenue_per_month"]:
-        columns[0].metric("Revenue back / month", _money(option["recovers_revenue_per_month"]))
-    else:
-        columns[0].metric("Share of the gap closed", f"{option['share_recovered_pct']}%")
-    columns[1].metric(
-        "Margin back / month", _money(option["recovers_margin_per_month"]),
-        help="Revenue and margin overlap — margin is a slice of revenue. Never add them.",
-    )
-    columns[2].metric("Margin over 12 months", _money(option["recovers_margin_over_12_months"]))
-    extra = _extra_metric(option)
-    if extra:
-        columns[3].metric(extra[0], extra[1], help=extra[2])
-
-    restores = option.get("restores_account_to_healthy")
-    if restores is True:
-        st.success(
-            "**This closes the gap.** On the same threshold the analysis itself uses, this "
-            "option returns the account to healthy."
-        )
-    elif restores is False:
-        short = (
-            f"{option['short_of_healthy_by_pp']}pp of margin"
-            if option.get("short_of_healthy_by_pp")
-            else f"{_money(option.get('still_short_per_month'))} a month"
-        )
-        st.warning(
-            f"**This helps but does not fix it.** The account still reads as leaking — "
-            f"{short} short of healthy. A partial fix can be the right call; just do not "
-            "close the case on it."
-        )
-
     if lever == "win_back":
+        first = options[0]
         st.caption(
-            f"**{', '.join(option['categories'])}** was worth "
-            f"**{_money(option['lost_revenue_per_month'])} a month** "
-            + (f"(**{option['share_of_account_baseline_pct']}%** of this account) "
-               if option.get("share_of_account_baseline_pct") else "")
-            + f"and has been gone **{option['months_already_gone']} months** — "
-            f"{_money(option['value_lost_so_far'])} so far. Winning it back with a concession of "
-            f"half the available room still returns "
-            f"{_money(option['margin_if_won_back_at_half_that_concession'])} a month."
+            f"**{', '.join(first['categories'])}** was worth "
+            f"**{_money(first['lost_revenue_per_month'])} a month** "
+            + (f"(**{first['share_of_account_baseline_pct']}%** of this account) "
+               if first.get("share_of_account_baseline_pct") else "")
+            + f"and has been gone **{first['months_already_gone']} months** — "
+            f"{_money(first['value_lost_so_far'])} so far."
         )
-    elif lever == "price_recovery":
-        st.caption(
-            f"Asking for **{option['reduction_from_today_pp']}pp** off today's discount. This "
-            f"account could lose up to "
-            f"**{option['volume_that_could_be_lost_before_this_stops_paying_pct']}% of its "
-            "volume** and still leave you better off than doing nothing — a tolerance for being "
-            "wrong, not a prediction. Nothing in a transaction history says how a buyer reacts "
-            "to a price change."
-        )
-    else:
-        st.caption(
-            "Recovery is shown as a share of the gap, not as a forecast. Nothing here predicts "
-            "whether the customer comes back — it prices what it would be worth if they did."
-        )
-    return option
+    st.caption(
+        "Nothing here predicts what the customer will do. It prices what each move would be "
+        "worth if it landed, so the choice below can be made on numbers rather than instinct."
+    )
+    return options
 
 
 def render_early_warning(report: dict) -> None:
@@ -211,34 +163,48 @@ def render_decision(decision: dict, colors: dict) -> None:
         padding:0.8rem 1.05rem;border-radius:6px;margin:0.5rem 0 0.9rem">
         <div style="font-size:0.76rem;color:{colors['muted']};text-transform:uppercase;
         letter-spacing:.04em">{label}</div>
-        <div style="font-size:1.1rem;font-weight:640;margin-top:0.15rem">
-        {decision.get('recommended_option', '')}</div>
-        <div style="font-size:0.93rem;color:{colors['text_secondary']};margin-top:0.4rem">
-        {decision.get('headline', '')}</div></div>""",
+        <div style="font-size:1.15rem;font-weight:650;margin-top:0.15rem">
+        {decision.get('headline', '')}</div>
+        <div style="font-size:0.9rem;color:{colors['text_secondary']};margin-top:0.35rem">
+        Target: {decision.get('recommended_option', '')}</div></div>""",
         unsafe_allow_html=True,
     )
 
-    st.markdown(decision.get("rationale", ""))
+    if decision.get("expected_result"):
+        st.markdown(f"**What this gets you** — {decision['expected_result']}")
+
+    # The steps come FIRST and outside the tabs. This panel asks "what should
+    # we do about it?", and an answer that leads with rationale and hides the
+    # work behind a tab label leaves the reader still asking the question.
+    steps = decision.get("what_to_do") or []
+    if steps:
+        st.markdown("**Do this**")
+        for number, step in enumerate(steps, start=1):
+            st.markdown(f"{number}. {step}")
+        st.write("")
+
+    with st.expander("Why this, and not more or less"):
+        st.markdown(decision.get("rationale", ""))
+        left, right = st.columns(2)
+        with left:
+            st.markdown("**Why not push harder**")
+            st.caption(decision.get("why_not_more_aggressive", "—"))
+        with right:
+            st.markdown("**Why not settle for less**")
+            st.caption(decision.get("why_not_less_aggressive", "—"))
 
     restores = decision.get("restores_account_to_healthy")
     left_over = decision.get("what_is_left_over")
-    if restores is False and left_over:
-        st.warning(f"**Does not fully fix it:** {left_over}")
-    elif restores is True:
+    if restores is True:
         st.success("**This returns the account to healthy.**")
-
-    # The rejected alternatives sit beside the choice, not buried: a
-    # recommendation that does not say what it turned down is an assertion.
-    left, right = st.columns(2)
-    with left:
-        st.markdown("**Why not push harder**")
-        st.caption(decision.get("why_not_more_aggressive", "—"))
-    with right:
-        st.markdown("**Why not settle for less**")
-        st.caption(decision.get("why_not_less_aggressive", "—"))
+    elif restores is False and left_over:
+        # Information, not a warning: taking part of the value back is a
+        # legitimate call, and flagging it as a shortfall would push every
+        # recommendation toward a maximum nobody would actually execute.
+        st.info(f"**Recovers part of it:** {left_over}")
 
     talking, checks, follow_up = st.tabs(
-        ["Take this into the room", "Check first", "How we'll know it worked"]
+        ["What to say", "Check first", "How we'll know it worked"]
     )
     with talking:
         for point in decision.get("talking_points") or []:

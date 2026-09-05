@@ -72,6 +72,9 @@ def a_decision(**overrides):
         "rationale": "The money is leaving through the price, not through volume.",
         "why_not_more_aggressive": "A full reset asks for too much at once.",
         "why_not_less_aggressive": "A smaller move leaves most of the leak in place.",
+        "expected_result": "Recovers Rs 14,512 a month and lifts margin to 17.3%.",
+        "what_to_do": ["Pull the last four quarters of discount approvals for this account.",
+                       "Book the renewal conversation with the buyer."],
         "talking_points": ["Discounting has deepened while order volume has not grown."],
         "check_before_acting": ["Confirm whether the current discount was contractually agreed."],
         "restores_account_to_healthy": False,
@@ -338,6 +341,38 @@ def test_decision_input_never_carries_the_raw_evidence_pack(report, options):
     assert "monthly_series" not in serialized
 
 
+def test_decision_input_names_the_products_that_moved(report, options):
+    """Stage 3 already knows which lines fell away and what each was worth.
+    Withholding that forces the adviser to set homework it has the answer
+    to — "pull the orders and find out which SKUs were lost"."""
+    payload = build_decision_input(report, options)
+    moved = payload["products_that_moved"]
+    assert moved, "an account with a leak has lines that moved"
+    for entry in moved:
+        assert entry["product"]
+        assert entry["status"] in ("disappeared", "declined")
+        assert entry["was_per_month"] >= 0
+
+
+def test_decision_input_names_categories_that_stopped(df):
+    from pipeline.evidence import build_evidence_pack as pack_for
+    p = pack_for(df, DEFECTED_ACCOUNT)
+    v = {"verdict": "leakage_detected", "temporary_or_structural": "structural",
+         "leak_dimensions": ["category_mix"], "confidence": "high", "defer": False,
+         "narrative": "n", "attributed_categories": [], "cited_facts": ["x"],
+         "recommended_actions": ["y"], "data_needed_if_deferring": []}
+    imp = compute_impact(p, v)
+    rep = assemble_report(DEFECTED_ACCOUNT, p, v, imp, prioritize(imp, v))
+    stopped = build_decision_input(rep, price_options(p))["categories_that_stopped"]
+    assert [c["category"] for c in stopped] == [DEFECTED_CATEGORY]
+    assert stopped[0]["months_at_zero"] >= 3
+
+
+def test_prompt_forbids_sending_the_reader_to_look_things_up():
+    from pipeline.decide import SYSTEM_PROMPT
+    assert "NEVER SEND THE READER TO FIND SOMETHING YOU WERE ALREADY GIVEN" in SYSTEM_PROMPT
+
+
 def test_decision_input_carries_the_options_and_the_money(report, options):
     payload = build_decision_input(report, options)
     assert payload["priced_options"] == options
@@ -414,6 +449,36 @@ def test_no_action_and_gather_data_are_available_verdicts():
     account, including the healthy ones and the ones nobody would call."""
     actions = SUBMIT_DECISION_TOOL["input_schema"]["properties"]["action_type"]["enum"]
     assert {"no_action", "gather_data", "expansion"} <= set(actions)
+
+
+def test_the_decision_states_the_result_so_nobody_has_to_work_it_out():
+    required = SUBMIT_DECISION_TOOL["input_schema"]["required"]
+    assert "expected_result" in required
+
+
+def test_a_partial_recovery_is_a_legitimate_recommendation():
+    """The prompt must not push every answer to the maximum option — an
+    ambitious plan nobody executes is worth less than a partial one they do."""
+    from pipeline.decide import SYSTEM_PROMPT
+    assert "A PARTIAL RECOVERY IS A GOOD OUTCOME" in SYSTEM_PROMPT
+    assert "recommending the maximum by default is not judgement" in SYSTEM_PROMPT
+
+
+def test_the_decision_says_what_to_actually_do():
+    """The panel asks "what should we do about it?". A financial target is
+    not an answer to that — someone has to be able to act on Monday."""
+    required = SUBMIT_DECISION_TOOL["input_schema"]["required"]
+    assert "what_to_do" in required
+    described = SUBMIT_DECISION_TOOL["input_schema"]["properties"]["what_to_do"]["description"]
+    assert "concrete steps" in described
+
+
+def test_every_priced_option_reads_as_an_action(df):
+    """Not "close 75% of the margin gap" — a target nobody can carry out."""
+    verbs = ("negotiate", "win back", "rebuild", "recover", "restore")
+    for account_id in sorted(df["account_id"].unique()):
+        for option in price_options(build_evidence_pack(df, account_id)):
+            assert option["option"].startswith(verbs), option["option"]
 
 
 def test_rejected_alternatives_are_required():

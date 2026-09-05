@@ -303,34 +303,32 @@ def render_intervention(report: dict, fingerprint: str, account_id: str,
     colors = active()
 
     if options:
-        chosen = render_options(options, colors)
-        target = chosen["discount_target_pct"] if "discount_target_pct" in chosen else float(
-            chosen["share_recovered_pct"]
-        )
-        lever = chosen["lever"]
+        render_options(options, colors)
+        lever = options[0]["lever"]
     else:
         render_early_warning(report)
-        chosen, target, lever = None, 0.0, "unpriced"
+        lever = "unpriced"
 
-    decision = cache.load_decision(fingerprint, account_id, model_id, f"{lever}-{target}")
+    # Keyed on the lever rather than on a chosen option: the agent now picks
+    # the option itself, so there is one recommendation per account.
+    decision = cache.load_decision(fingerprint, account_id, model_id, lever)
 
     act, note = st.columns([1, 3])
     with act:
         draft_clicked = st.button(
-            "Draft the case",
-            width="stretch",
+            "Recommend what to do",
+            type="primary",
+            use_container_width=True,
             disabled=decision is not None,
-            help="Already drafted for this option — the saved recommendation is shown below."
+            help="Already recommended — the saved answer is shown below."
             if decision is not None
-            else "One model call: picks the play, argues for it, and writes the brief.",
+            else "One model call: picks the move, says what it gets you, and lists the steps.",
         )
     with note:
         st.write("")
         st.caption(
-            "Optional. The figures above are already yours to act on — this adds the commercial "
-            "judgement and the words to use."
-            if options else
-            "Optional. Adds the commercial judgement: which lever fits, what to do, who owns it."
+            "The AI weighs the options above and tells you which one to take, what it will be "
+            "worth, and exactly what to do — you do not have to work any of it out."
         )
 
     if decision is None and draft_clicked:
@@ -341,7 +339,7 @@ def render_intervention(report: dict, fingerprint: str, account_id: str,
             st.warning(f"{decision_error} Anything above is unaffected.")
             decision = None
         else:
-            cache.save_decision(fingerprint, account_id, model_id, f"{lever}-{target}", decision)
+            cache.save_decision(fingerprint, account_id, model_id, lever, decision)
             st.rerun()
 
     if decision:

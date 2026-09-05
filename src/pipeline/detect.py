@@ -108,6 +108,7 @@ def _seasonal_precedent(df: pd.DataFrame, category: str, decline_month: str, mon
 SEASONAL_MONTHS_IN_YEAR = 12
 DIP_FRACTION = 0.75            # a month below 75% of the series median counts as a dip
 MIN_MONTHS_FOR_ECHO_CHECK = 18  # a recent dip plus a full prior-year window to compare it to
+ECHO_MIN_LIFT = 0.4            # prior-year lows must match dips this much better than non-dips
 
 
 def prior_year_echo(series: pd.Series) -> dict:
@@ -131,21 +132,39 @@ def prior_year_echo(series: pd.Series) -> dict:
     if not dip_months:
         return {"status": "no_recent_dip", "dip_months": [], "echo_months": []}
 
-    echo_months = []
-    for month in dip_months:
+    def prior_was_low(month) -> bool | None:
         prior = month - SEASONAL_MONTHS_IN_YEAR
-        if prior in series.index and float(series.loc[prior]) < threshold:
-            echo_months.append(prior)
+        if prior not in series.index:
+            return None
+        return float(series.loc[prior]) < threshold
+
+    echo_months = [m - SEASONAL_MONTHS_IN_YEAR for m in dip_months if prior_was_low(m)]
+
+    # The echo must be DISCRIMINATIVE: the prior year's low months have to
+    # line up with this year's dips better than with this year's ordinary
+    # months. On an account that skips half its months at random, half of
+    # any prior-year window is low too, so "the same months were low last
+    # year" is true by chance — a lift of ~0. A genuine seasonal pattern lines
+    # up almost perfectly (ACC-103: lift 1.0). Without this, the check
+    # confirmed seasonality on pure noise.
+    non_dip_priors = [prior_was_low(m) for m in recent_window if m not in dip_months]
+    non_dip_priors = [v for v in non_dip_priors if v is not None]
+    hit_rate_given_dip = len(echo_months) / len(dip_months)
+    hit_rate_given_non_dip = (sum(non_dip_priors) / len(non_dip_priors)) if non_dip_priors else 0.0
+    lift = hit_rate_given_dip - hit_rate_given_non_dip
 
     # A single echoing month out of many dipped months is coincidence, not a
     # pattern: require both an absolute floor and that most of the dip is
     # accounted for, so a structural collapse that happens to start in a
     # historically quiet month is not excused as seasonal.
-    confirmed = len(echo_months) >= 2 and len(echo_months) >= len(dip_months) / 2
+    confirmed = (len(echo_months) >= 2
+                 and len(echo_months) >= len(dip_months) / 2
+                 and lift >= ECHO_MIN_LIFT)
     return {
         "status": "confirmed" if confirmed else "not_present",
         "dip_months": [str(m) for m in dip_months],
         "echo_months": [str(m) for m in echo_months],
+        "echo_lift": round(lift, 2),
         "dip_threshold": round(threshold, 2),
     }
 
@@ -155,6 +174,31 @@ def prior_year_echo(series: pd.Series) -> dict:
 # A category counts as defected (not merely declining) once it goes to zero
 # and stays there. Below this it is still plausibly an ordering gap.
 MIN_MONTHS_AT_ZERO_FOR_DEFECTION = 3
+
+# ...and only if the account used to buy it REGULARLY. A category bought in two
+# of eighteen baseline months and then absent for three has not defected; it
+# was never a habit. Every category in the reference workbook is bought every
+# month, so this never mattered there — real accounts, and realistic synthetic
+# ones, have rarely-bought categories, and without this the detector calls a
+# defection on nearly all of them.
+MIN_BASELINE_REGULARITY_FOR_DEFECTION = 0.5
+
+# ...and only if the category MATTERED. A line worth one percent of the
+# account's revenue going quiet is not a defection anyone should be sent to
+# win back; it is the tail of a basket doing what tails do. The workbook's
+# one true defection (ACC-106, Diagnostic Equipment) was about a third of
+# revenue. Small lines dropping out is also what a broad decline looks like
+# up close, and naming them would turn "whole-account disengagement" into a
+# list of scapegoats — the attribution mistake the prompt warns against.
+MIN_BASELINE_SHARE_FOR_DEFECTION = 0.05
+
+# ...and only if the REST of the account carried on. A line that stops while
+# everything else keeps being bought is a defection — the customer took that
+# business elsewhere. A line that stops while the whole account collapses is
+# part of the collapse, and naming it would turn "whole-account disengagement"
+# into a list of scapegoats. ACC-106 kept 76% of its revenue after losing its
+# line; a broad decline to a fifth of baseline keeps 20%.
+MIN_ACCOUNT_CONTINUITY_FOR_DEFECTION = 0.4
 
 
 def _trailing_zero_months(series: pd.Series) -> int:
@@ -168,6 +212,21 @@ def _trailing_zero_months(series: pd.Series) -> int:
 
 def category_changes(df: pd.DataFrame, high_value_categories: list[str]) -> list[dict]:
     months = full_month_index(df)
+    # Regularity is judged against the months the ACCOUNT was active, not the
+    # calendar. A customer who orders in four months out of ten and buys a
+    # category every single time is a regular buyer of it; measured against
+    # the calendar that category would look "irregular" and could never be
+    # seen to defect — which is exactly how the first version missed every
+    # defection on lumpy accounts.
+    account_monthly = (df.assign(month=df["date"].dt.to_period("M"))
+                       .groupby("month")["revenue"].sum().reindex(months, fill_value=0.0))
+    baseline_active = (account_monthly.iloc[:-RECENT_MONTHS] > 0) if len(months) > RECENT_MONTHS \
+        else pd.Series(dtype=bool)
+    if len(months) > RECENT_MONTHS and account_monthly.iloc[:-RECENT_MONTHS].mean() > 0:
+        account_continuity = float(account_monthly.iloc[-RECENT_MONTHS:].mean()
+                                   / account_monthly.iloc[:-RECENT_MONTHS].mean())
+    else:
+        account_continuity = 0.0
     results = []
     for category in sorted(df["category"].unique()):
         raw = _monthly_category_series(df, category, months)
@@ -177,7 +236,16 @@ def category_changes(df: pd.DataFrame, high_value_categories: list[str]) -> list
             cp = normalize_medians_to_monthly_rate(cp)
 
         trailing_zeros = _trailing_zero_months(raw)
-        had_baseline = float(raw.iloc[:-RECENT_MONTHS].sum()) > 0 if len(raw) > RECENT_MONTHS else False
+        baseline_part = raw.iloc[:-RECENT_MONTHS] if len(raw) > RECENT_MONTHS else raw.iloc[:0]
+        active_part = baseline_part[baseline_active.to_numpy()] if len(baseline_part) else baseline_part
+        baseline_total = float(account_monthly.iloc[:-RECENT_MONTHS].sum()) if len(months) > RECENT_MONTHS else 0.0
+        baseline_share = (float(baseline_part.sum()) / baseline_total) if baseline_total > 0 else 0.0
+        had_baseline = (
+            len(active_part) > 0
+            and float((active_part > 0).mean()) >= MIN_BASELINE_REGULARITY_FOR_DEFECTION
+            and baseline_share >= MIN_BASELINE_SHARE_FOR_DEFECTION
+            and account_continuity >= MIN_ACCOUNT_CONTINUITY_FOR_DEFECTION
+        )
 
         entry = {
             "category": category,
@@ -188,6 +256,7 @@ def category_changes(df: pd.DataFrame, high_value_categories: list[str]) -> list
             # actionable rather than a generic "revenue is down".
             "defected": bool(had_baseline and trailing_zeros >= MIN_MONTHS_AT_ZERO_FOR_DEFECTION),
             "consecutive_months_at_zero": trailing_zeros,
+            "baseline_revenue_share": round(baseline_share, 4),
         }
         if cp:
             entry.update(cp)
@@ -334,18 +403,30 @@ MILD_DRIFT_HALVES = -0.05
 MILD_DRIFT_SLOPE = -0.004
 GROWTH_HALVES = 0.05
 
+# Second route to "material": the trailing window against everything before
+# it. Half-over-half and a fitted slope describe a decline that has been
+# going on for a while; they dilute a steep drop confined to the last few
+# months of a long history (a 32% fall in the last six of 33 months reads as
+# -12% half-over-half). Recent-vs-baseline is the quantity the permutation
+# test already checks, so a drop this large is also the one a p-value can
+# vouch for.
+MATERIAL_RECENT_DROP = -0.25
 
-def revenue_decline(trend: dict) -> dict:
+
+def revenue_decline(trend: dict, recent_vs_baseline: float | None = None) -> dict:
     """Grade the total-revenue trajectory: material decline, mild drift,
     stable, or growth. Graded rather than boolean because the reference
     dataset deliberately includes a ~12% drift that must NOT be flagged
     sitting just below declines of ~20% that must be."""
     halves = trend.get("first_half_vs_second_half_pct_change")
     slope = trend.get("slope_pct_per_month")
+    recent = recent_vs_baseline
 
     if halves is None or slope is None:
         status = "insufficient_history"
     elif halves <= MATERIAL_DECLINE_HALVES and slope <= MATERIAL_DECLINE_SLOPE:
+        status = "material_decline"
+    elif recent is not None and recent <= MATERIAL_RECENT_DROP:
         status = "material_decline"
     elif halves <= MILD_DRIFT_HALVES or slope <= MILD_DRIFT_SLOPE:
         status = "mild_drift"
@@ -358,10 +439,12 @@ def revenue_decline(trend: dict) -> dict:
         "status": status,
         "first_half_vs_second_half_pct_change": halves,
         "slope_pct_per_month": slope,
+        "recent_vs_baseline_pct_change": recent,
         "material_thresholds": {
             "first_half_vs_second_half_pct_change": MATERIAL_DECLINE_HALVES,
             "slope_pct_per_month": MATERIAL_DECLINE_SLOPE,
-            "note": "both must be met for 'material_decline'",
+            "recent_vs_baseline_pct_change": MATERIAL_RECENT_DROP,
+            "note": "material if (halves AND slope) are met, OR the recent-vs-baseline drop is",
         },
     }
 
@@ -369,6 +452,13 @@ def revenue_decline(trend: dict) -> dict:
 # --- Dip episodes ----------------------------------------------------------
 
 RECOVERY_LEVEL = 0.9  # back to 90% of the series median counts as recovered
+
+# One low month is a month, not an episode. On the reference workbook (noise
+# ~6%) a single sub-75% month was rare enough to be meaningful; on anything
+# lumpier it is routine, and reporting each one as a "dip episode" — often
+# with the final month flagged as "ongoing" — turns ordinary variance into a
+# story. Two consecutive months is the minimum for a run to count.
+MIN_EPISODE_MONTHS = 2
 
 
 def dip_episodes(series: pd.Series) -> list[dict]:
@@ -401,8 +491,10 @@ def dip_episodes(series: pd.Series) -> list[dict]:
 
     out = []
     for start, first_normal_month in episodes:
-        end = start if first_normal_month is None else first_normal_month - 1
+        end = series.index[-1] if first_normal_month is None else first_normal_month - 1
         window = series.loc[start:end]
+        if len(window) < MIN_EPISODE_MONTHS:
+            continue
         if first_normal_month is None:
             recovered, recovered_by = False, None
         else:

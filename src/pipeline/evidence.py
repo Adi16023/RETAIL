@@ -35,6 +35,38 @@ from .detect import (
     tier_shift,
 )
 from .ingest import account_sufficiency, analysis_dimensions
+from .significance import significance_tests
+
+
+def _attach_p_values(pack: dict, significance: dict) -> None:
+    """Put each dimension's p-value next to the status it qualifies.
+
+    The detector says how BIG the shift is; the permutation test says whether
+    a shift that big is distinguishable from this account's own noise. Kept
+    side by side so a reader — human or model — never sees one without the
+    other. Blocks that are None (dimension unavailable) are left alone.
+    """
+    pairs = (
+        ("revenue_decline", "revenue"),
+        ("margin", "margin"),
+        ("discount", "discount"),
+        ("tier_mix", "tier_mix"),
+    )
+    for block_key, sig_key in pairs:
+        block = pack.get(block_key)
+        if isinstance(block, dict):
+            result = significance.get(sig_key, {})
+            block["p_value"] = result.get("p_value")
+            block["significant"] = result.get("significant")
+
+    order = pack.get("order_pattern")
+    if isinstance(order, dict):
+        order["p_value_frequency"] = significance.get("order_frequency", {}).get("p_value")
+        order["p_value_basket_width"] = significance.get("basket_width", {}).get("p_value")
+        order["significant"] = bool(
+            significance.get("order_frequency", {}).get("significant")
+            or significance.get("basket_width", {}).get("significant")
+        )
 
 
 def _monthly_revenue_series(monthly_series: dict) -> pd.Series:
@@ -68,7 +100,9 @@ def build_evidence_pack(df: pd.DataFrame, account_id: str) -> dict:
                 # being promoted to a cause.
                 identity["account_manager_changed"] = True
 
-    return {
+    significance = significance_tests(acc_df)
+
+    pack = {
         **identity,
         "data_sufficiency": sufficiency,
         "analysis_dimensions": analysis_dimensions(acc_df),
@@ -81,7 +115,7 @@ def build_evidence_pack(df: pd.DataFrame, account_id: str) -> dict:
         },
         "overall_revenue": baseline["overall_revenue"],
         "revenue_trend": trend,
-        "revenue_decline": revenue_decline(trend),
+        "revenue_decline": revenue_decline(trend, baseline["overall_revenue"].get("pct_change")),
         # Seasonality and dip history are checked on TOTAL revenue as well as
         # per category: a genuinely seasonal account dips across its whole
         # book at once, which no single category's change-point would show.
@@ -101,4 +135,12 @@ def build_evidence_pack(df: pd.DataFrame, account_id: str) -> dict:
             "outlier_months": outlier_months(acc_df),
             "returns": returns_summary(acc_df),
         },
+        # Noise-relative significance per dimension. `p_value` is the share of
+        # random re-orderings of this account's own months that produce a
+        # recent-vs-baseline shift at least this large. Below `level` the
+        # shift is real; above it, the threshold detector's status describes
+        # something the account's ordinary lumpiness could have produced.
+        "significance": significance,
     }
+    _attach_p_values(pack, significance)
+    return pack

@@ -25,8 +25,22 @@ venv/Scripts/streamlit run app.py
 One screen. Pick an account, then work down three steps:
 
 1. **What the data says** — the deterministic evidence: status strip, KPI tiles, and tabs for trend, value mix, pricing, order pattern, data quality and the raw monthly table. No model, no API calls.
-2. **What the AI concludes** — one LLM call. Choose **Open source** or **Proprietary**; the verdict arrives with tabs for evidence, what was ruled out, what to do, and confidence limits. Results are cached per account + model, so re-visiting is instant and free.
-3. **Was the AI right?** — scores that verdict against the workbook's Answer Key for this account, with an option to score the whole book.
+2. **What the AI concludes** — one LLM call. Choose **Open source** or **Proprietary**; the verdict arrives with tabs for evidence, what was ruled out, the statistical model's second opinion, what to do, and confidence limits. Results are cached per account + model, so re-visiting is instant and free.
+3. **Was the AI right?** — scores that verdict against the workbook's Answer Key for this account.
+
+## The statistical second opinion
+
+Beside the LLM sits a gradient-boosted classifier that reads the same evidence pack, reduced to numbers, and returns P(leakage) / P(healthy) / P(defer) with the facts those rest on. It is trained on generated accounts whose problems are known by construction — calibrated to real B2B ordering behaviour (UCI Online Retail II) and to the workbook's economics — and validated on the 18 real accounts it never trained on. The LLM is told what it is and must explain any disagreement; the UI shows both and whether they agree.
+
+```bash
+venv/Scripts/python scripts/fetch_external_data.py      # real ordering behaviour (45 MB, gitignored)
+venv/Scripts/python scripts/check_generator.py          # generator gate: must print PHASE 2 PASS
+venv/Scripts/python scripts/generate_training_data.py --accounts 3000 --seed 42
+venv/Scripts/python scripts/generate_training_data.py --accounts 800 --seed 7 --name test_7
+venv/Scripts/python scripts/train_leak_classifier.py    # -> models/leak_classifier.joblib (gitignored)
+```
+
+Without a trained model the app and pipeline run exactly as before; the second-opinion tab simply says none is available.
 
 ## Score the agent against the Answer Key
 

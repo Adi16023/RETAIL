@@ -37,6 +37,7 @@ load_dotenv(REPO_ROOT / ".env")
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from pipeline.agent import AgentError
+from ml.predict import attach_model_opinion
 from pipeline.evidence import build_evidence_pack
 from pipeline.impact import compute_impact
 from pipeline.ingest import IngestionError, ingest
@@ -220,7 +221,10 @@ def load_uploaded_data(file_bytes: bytes, filename: str):
 
 @st.cache_data(show_spinner=False)
 def cached_evidence_pack(df: pd.DataFrame, account_id: str) -> dict:
-    return build_evidence_pack(df, account_id)
+    # The classifier's second opinion rides along in the pack: deterministic,
+    # so it is computed once with the rest and shown both before and after
+    # the AI step. Without a trained model file it is simply `available: false`.
+    return attach_model_opinion(build_evidence_pack(df, account_id))
 
 
 # --- Data ------------------------------------------------------------------

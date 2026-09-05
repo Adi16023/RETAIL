@@ -1,0 +1,234 @@
+{
+  "behaviour": {
+    "active_month_share": {
+      "q05": 0.14285714285714285,
+      "q25": 0.22727272727272727,
+      "q50": 0.3333333333333333,
+      "q75": 0.5,
+      "q95": 0.84
+    },
+    "orders_per_active_month": {
+      "q05": 1.0,
+      "q25": 1.0,
+      "q50": 1.1666666666666667,
+      "q75": 1.3856837606837606,
+      "q95": 2.0
+    },
+    "lines_per_order": {
+      "q05": 4.5,
+      "q25": 11.744318181818182,
+      "q50": 18.759615384615387,
+      "q75": 29.232142857142858,
+      "q95": 58.62999999999999
+    },
+    "units_per_line": {
+      "q05": 1.0,
+      "q25": 2.0,
+      "q50": 6.0,
+      "q75": 12.0,
+      "q95": 48.0
+    },
+    "history_months": {
+      "q05": 12.0,
+      "q25": 15.0,
+      "q50": 19.0,
+      "q75": 23.0,
+      "q95": 25.0
+    },
+    "return_line_rate": 0.022737528567477475,
+    "monthly_revenue_cv": {
+      "q05": 0.786801564649104,
+      "q25": 1.2677365227062949,
+      "q50": 1.6700813883459573,
+      "q75": 2.1482046110009234,
+      "q95": 2.842830397333944
+    },
+    "source": "measured from online_retail_II.csv: 2,512 customers with >= 12 months"
+  },
+  "economics": {
+    "products": [
+      {
+        "product": "PT-Cordless Drill 18V",
+        "category": "Power Tools",
+        "tier": "High",
+        "list_price": 9200,
+        "unit_cost": 5336
+      },
+      {
+        "product": "PT-Angle Grinder 900W",
+        "category": "Power Tools",
+        "tier": "High",
+        "list_price": 6400,
+        "unit_cost": 3712
+      },
+      {
+        "product": "PT-Rotary Hammer SDS",
+        "category": "Power Tools",
+        "tier": "High",
+        "list_price": 14800,
+        "unit_cost": 8584
+      },
+      {
+        "product": "DG-Digital Multimeter Pro",
+        "category": "Diagnostic Equipment",
+        "tier": "High",
+        "list_price": 12500,
+        "unit_cost": 6875
+      },
+      {
+        "product": "DG-Thermal Imager",
+        "category": "Diagnostic Equipment",
+        "tier": "High",
+        "list_price": 38000,
+        "unit_cost": 20900
+      },
+      {
+        "product": "DG-Insulation Tester",
+        "category": "Diagnostic Equipment",
+        "tier": "High",
+        "list_price": 21000,
+        "unit_cost": 11550
+      },
+      {
+        "product": "PH-Precision Torque Wrench",
+        "category": "Precision Hardware",
+        "tier": "High",
+        "list_price": 7300,
+        "unit_cost": 4380
+      },
+      {
+        "product": "PH-Micrometer Set",
+        "category": "Precision Hardware",
+        "tier": "High",
+        "list_price": 4100,
+        "unit_cost": 2460
+      },
+      {
+        "product": "PH-Bearing Puller Kit",
+        "category": "Precision Hardware",
+        "tier": "High",
+        "list_price": 5600,
+        "unit_cost": 3360
+      },
+      {
+        "product": "FF-Anchor Bolt Assortment",
+        "category": "Fasteners & Fittings",
+        "tier": "Mid",
+        "list_price": 900,
+        "unit_cost": 630
+      },
+      {
+        "product": "FF-Stainless Fastener Pack",
+        "category": "Fasteners & Fittings",
+        "tier": "Mid",
+        "list_price": 1400,
+        "unit_cost": 980
+      },
+      {
+        "product": "EA-MCB 32A",
+        "category": "Electrical Accessories",
+        "tier": "Mid",
+        "list_price": 650,
+        "unit_cost": 455
+      },
+      {
+        "product": "EA-Cable Gland Set",
+        "category": "Electrical Accessories",
+        "tier": "Mid",
+        "list_price": 1100,
+        "unit_cost": 770
+      },
+      {
+        "product": "CN-Cutting Blade 10pk",
+        "category": "Consumables",
+        "tier": "Low",
+        "list_price": 420,
+        "unit_cost": 357
+      },
+      {
+        "product": "CN-Drill Bit Set",
+        "category": "Consumables",
+        "tier": "Low",
+        "list_price": 560,
+        "unit_cost": 476
+      },
+      {
+        "product": "CN-Abrasive Discs 25pk",
+        "category": "Consumables",
+        "tier": "Low",
+        "list_price": 300,
+        "unit_cost": 255
+      },
+      {
+        "product": "SB-Safety Gloves 12pr",
+        "category": "Safety Basics",
+        "tier": "Low",
+        "list_price": 360,
+        "unit_cost": 306
+      },
+      {
+        "product": "SB-Safety Glasses 10pk",
+        "category": "Safety Basics",
+        "tier": "Low",
+        "list_price": 240,
+        "unit_cost": 204
+      },
+      {
+        "product": "CM-Degreaser 5L",
+        "category": "Cleaning & Maintenance",
+        "tier": "Low",
+        "list_price": 480,
+        "unit_cost": 413
+      },
+      {
+        "product": "CM-Shop Wipes Bulk",
+        "category": "Cleaning & Maintenance",
+        "tier": "Low",
+        "list_price": 260,
+        "unit_cost": 224
+      }
+    ],
+    "regions": [
+      "East",
+      "North",
+      "South",
+      "West"
+    ],
+    "managers": [
+      "Anil Kumar",
+      "Fatima Sheikh",
+      "Priya Nair",
+      "Rohit Sharma",
+      "Sandeep Rao"
+    ],
+    "discount_pct": {
+      "q05": 0.015,
+      "q25": 0.036,
+      "q50": 0.051,
+      "q75": 0.068,
+      "q95": 0.096
+    },
+    "high_tier_revenue_share": {
+      "q05": 0.2498086809563016,
+      "q25": 0.490852082591976,
+      "q50": 0.49583180360426427,
+      "q75": 0.5571830268416407,
+      "q95": 0.7276266827610282
+    },
+    "lines_per_order": {
+      "q05": 5.013333333333334,
+      "q25": 6.048387096774194,
+      "q50": 6.234705228031146,
+      "q75": 6.4,
+      "q95": 7.152136752136752
+    },
+    "orders_per_month": {
+      "q05": 1.11875,
+      "q25": 1.21875,
+      "q50": 1.2708333333333335,
+      "q75": 1.3229166666666665,
+      "q95": 1.6499999999999986
+    },
+    "source": "measured from meridian: 18 accounts"
+  }
+}

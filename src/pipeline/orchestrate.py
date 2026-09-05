@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import pandas as pd
 
+from ml.predict import attach_model_opinion
+
 from .agent import DEFAULT_MODEL, investigate
 from .evidence import build_evidence_pack
 from .impact import compute_impact
@@ -24,7 +26,10 @@ def run_for_account(
     model: str = DEFAULT_MODEL,
 ) -> dict:
     df, _ingestion_report = ingest(source)
-    evidence_pack = build_evidence_pack(df, account_id)
+    # The classifier's second opinion is attached as a deterministic step
+    # between evidence assembly and the LLM. With no trained model on disk it
+    # attaches `available: false` and the run is exactly the old pipeline.
+    evidence_pack = attach_model_opinion(build_evidence_pack(df, account_id))
     verdict = investigate(client, df, account_id, evidence_pack, model=model)
     impact = compute_impact(evidence_pack, verdict)
     priority = prioritize(impact, verdict)

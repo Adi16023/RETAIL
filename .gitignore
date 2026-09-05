@@ -13,3 +13,14 @@ scorecard.json
 # Saved investigation results, keyed by account + model + data fingerprint.
 # Purely a cost/latency cache — deleting it only costs a re-run.
 .cache/
+
+# Third-party datasets used to calibrate the synthetic generator (e.g. UCI
+# Online Retail II, 43 MB). Downloaded by script, never committed.
+data/external/
+
+# Generated training data — a function of seed + data/calibration/generator.json.
+# Regenerates in about a minute with scripts/generate_training_data.py.
+data/synthetic/
+
+# Trained model artefacts — rebuilt by scripts/train_leak_classifier.py.
+# models/

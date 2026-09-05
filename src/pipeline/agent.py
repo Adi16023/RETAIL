@@ -110,6 +110,23 @@ history genuinely cannot be classified temporary vs structural — no amount of 
 missing months, and guessing is the failure. A deferred, low-confidence, well-reasoned answer is \
 scored HIGHER than a forced confident one — do not manufacture a verdict to sound decisive.
 
+A SECOND OPINION, NOT A VERDICT. `model_opinion` (when `available`) is the output of a statistical \
+classifier trained on generated accounts whose leak status was known by construction. It read the \
+same evidence pack you are reading, reduced to numbers, and gives P(leakage), P(healthy), P(defer) \
+plus the facts those probabilities rest on (`top_drivers`). It has never seen this account, it \
+cannot read context, and it is sometimes wrong — treat it as one more witness, weighted like the \
+p-values, never as the answer. Three rules:
+- It is never, by itself, a reason to flag. A leakage verdict still needs a named dimension and \
+cited facts from the pack.
+- If your verdict disagrees with its `leaning`, you must say why in model_opinion_response — name the \
+fact in the evidence that overrides it (a prior-year echo it cannot see as seasonal, a mix shift \
+whose direction is favourable, a recovered dip) — and use at most medium confidence unless that \
+overriding fact is unambiguous.
+- If it agrees with you and is `decisive`, that is corroboration and may support higher confidence. \
+If it is not decisive (no probability at 0.6 or above), it is telling you the numbers alone are \
+ambiguous; that is a reason for caution, not for a coin-flip.
+When `available` is false, ignore the block entirely and leave model_opinion_response empty.
+
 You may call the drill-down tools as many times as you need before answering. When you have enough \
 evidence, call submit_verdict exactly once with your final structured answer. Every entry in \
 cited_facts must reference a specific fact from the evidence pack or a tool result (e.g. \
@@ -312,16 +329,43 @@ SUBMIT_VERDICT_TOOL = {
                 "items": {"type": "string"},
                 "description": "What additional data would resolve the ambiguity. Empty if not deferring.",
             },
+            "model_opinion_response": {
+                "type": "string",
+                "description": "One or two sentences on the classifier's second opinion (model_opinion): if you disagree with its leaning, the specific fact in the evidence that overrides it; if you agree, what corroborates. Empty string if model_opinion was not available.",
+            },
         },
         "required": [
             "verdict", "temporary_or_structural", "confidence", "defer",
             "leak_dimensions", "attributed_categories", "cited_facts", "narrative",
-            "recommended_actions", "data_needed_if_deferring",
+            "recommended_actions", "data_needed_if_deferring", "model_opinion_response",
         ],
         "additionalProperties": False,
     },
     "strict": True,
 }
+
+
+def _round_floats(value, places: int = 4):
+    if isinstance(value, float):
+        return round(value, places)
+    if isinstance(value, dict):
+        return {k: _round_floats(v, places) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_round_floats(v, places) for v in value]
+    return value
+
+
+def compact_json(payload) -> str:
+    """The evidence pack and tool results as the model sees them.
+
+    Floats are rounded to four decimals and separators carry no spaces. This
+    is not cosmetic: `0.24930000000000002` costs the same as a sentence, and
+    the free Groq tier caps a request at 8,000 tokens per minute — the pack
+    crossed that line by ~1% the day the model opinion and the third
+    significance window were added, and six of eighteen accounts errored.
+    Rounding changes no figure a person would read; None stays None, because
+    "not measured" must remain visible."""
+    return json.dumps(_round_floats(payload), separators=(",", ":"))
 
 
 class AgentError(Exception):
@@ -356,7 +400,7 @@ def investigate(
     submit_verdict input dict. Raises AgentError if the model never
     submits a verdict within max_iterations."""
     tools = DRILLDOWN_TOOLS + [SUBMIT_VERDICT_TOOL]
-    messages = [{"role": "user", "content": json.dumps(evidence_pack)}]
+    messages = [{"role": "user", "content": compact_json(evidence_pack)}]
 
     for _ in range(max_iterations):
         response = client.messages.create(
@@ -383,7 +427,7 @@ def investigate(
             try:
                 result = _execute_tool(df, account_id, block.name, block.input)
                 tool_results.append({
-                    "type": "tool_result", "tool_use_id": block.id, "content": json.dumps(result),
+                    "type": "tool_result", "tool_use_id": block.id, "content": compact_json(result),
                 })
             except Exception as e:
                 tool_results.append({

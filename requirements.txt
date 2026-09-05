@@ -5,3 +5,5 @@ anthropic==1.3.0
 streamlit==1.63.0
 groq==1.7.0
 python-dotenv==1.2.3
+scikit-learn==1.9.0   # leak classifier (src/ml) — trained on synthetic accounts, validated on the workbook
+joblib==1.6.0

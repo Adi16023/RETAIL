@@ -28,6 +28,13 @@ from .charts import (
 )
 from .metrics import category_comparison, headline_metrics, monthly_frame, tier_long
 from .palette import active, status_style
+from .verdict import noise_verdict
+
+# Status-strip key -> the significance test that speaks to it.
+SIGNIFICANCE_KEY = {
+    "revenue_decline": "revenue", "margin": "margin", "discount": "discount",
+    "tier_mix": "tier_mix", "order_pattern": "order_frequency",
+}
 
 # Dimension -> (evidence-pack key, label, one-line explanation of what it means).
 SIGNAL_ROW = [
@@ -59,11 +66,18 @@ def _render_status_strip(pack: dict, colors: dict) -> None:
         "order_pattern": dimensions.get("order_pattern", True),
     }
 
+    significance = pack.get("significance") or {}
     columns = st.columns(len(SIGNAL_ROW) + 1)
     for column, (key, label, explanation) in zip(columns, SIGNAL_ROW):
         block = pack.get(key)
         status = "unavailable" if not availability.get(key, True) or block is None else block.get("status")
         color, icon, text = status_style(status, colors)
+        # The hover carries the noise test, so a manager can tell "over the
+        # threshold" from "over the threshold AND bigger than this account's
+        # usual wobble" without leaving the strip.
+        noise = noise_verdict(significance.get(SIGNIFICANCE_KEY.get(key)))
+        if noise != "—":
+            explanation = f"{explanation}\n\nReal, or noise? {noise}."
         column.markdown(
             f"<div style='line-height:1.35'>"
             f"<div style='font-size:0.72rem;color:{colors['muted']};text-transform:uppercase;"

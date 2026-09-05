@@ -25,6 +25,7 @@ No hard-coded absolute paths — everything is relative to this file or comes
 from the uploaded file object.
 """
 
+import json
 import sys
 from pathlib import Path
 
@@ -38,12 +39,24 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from pipeline.agent import AgentError
 from ml.predict import attach_model_opinion
+from pipeline.compare import (
+    MAX_ACCOUNTS,
+    MIN_ACCOUNTS,
+    ComparisonError,
+    build_comparison_digest,
+    compare_accounts,
+)
+from pipeline.decide import DecisionError, build_decision_input, price_options, recommend
 from pipeline.evidence import build_evidence_pack
 from pipeline.impact import compute_impact
 from pipeline.ingest import IngestionError, ingest
 from pipeline.prioritize import prioritize
 from pipeline.report import assemble_report
+from pipeline.timeline import PRESENCE_ONLY_DIMENSIONS, build_timeline
 from ui import cache
+from ui.compare import render_comparison
+from ui.decide import render_decision, render_early_warning, render_no_lever, render_options
+from ui.palette import active
 from ui.dashboard import render_account_dashboard
 from ui.verdict import render_verdict
 from validation.answer_key import AnswerKeyUnavailable, load_answer_key, score_report
@@ -131,6 +144,210 @@ def investigate_account(df, account_id, pack, choice_label):
     return report, None
 
 
+# --- PDF export ------------------------------------------------------------
+
+@st.cache_data(show_spinner=False)
+def build_pdf_cached(report_json: str, depth: str) -> bytes:
+    """Render a report to PDF, memoised on (report, depth).
+
+    Keyed by the serialized report rather than the dict so Streamlit can hash
+    it, and so that re-rendering the page — which happens on every widget
+    interaction — does not rebuild the document each time.
+    """
+    from reporting.pdf import build_pdf
+
+    return build_pdf(json.loads(report_json), depth)
+
+
+# Only the brief is offered here. `reporting.pdf` still renders a full
+# dossier — the per-dimension evidence, the ruled-out explanations and the
+# provenance appendix are all intact behind BRIEF's sibling depth — but this
+# screen deliberately exposes one document, so there is no depth to choose
+# and no wrong choice to make. Re-enabling it is a widget, not a rewrite.
+PDF_DEPTH = "brief"
+
+
+def render_pdf_download(report: dict) -> None:
+    """A download button for the executive brief.
+
+    Rendered from the report loaded off the disk cache, never from inside the
+    "Investigate" button block: the download button triggers a Streamlit
+    rerun, at which point that button reads False and an inline render would
+    blank the page mid-demo.
+    """
+    st.markdown("**Take it away as a PDF**")
+    st.caption(
+        "The verdict, the money, what changed and when, and what to do — about two "
+        "pages, written for the account owner. Tables only; nothing in it that is not "
+        "on this page."
+    )
+
+    try:
+        with st.spinner("Building the PDF…"):
+            from reporting.pdf import pdf_filename
+
+            pdf_bytes = build_pdf_cached(json.dumps(report), PDF_DEPTH)
+    except Exception as e:
+        # The PDF is a convenience on top of a report the page has already
+        # rendered in full. A failure here must not blank the analysis.
+        st.warning(f"Could not build the PDF: {e}. The verdict above is unaffected.")
+        return
+
+    get, _ = st.columns([1, 2])
+    get.download_button(
+        "Download the brief (PDF)",
+        data=pdf_bytes,
+        file_name=pdf_filename(report, PDF_DEPTH),
+        mime="application/pdf",
+        type="primary",
+        use_container_width=True,
+    )
+    get.caption(f"{len(pdf_bytes) / 1024:.0f} KB")
+
+
+def compare_selected_accounts(digest, choice_label):
+    """Run the cross-account comparison. Returns (result, error).
+
+    Mirrors investigate_account: same client construction, same provider
+    error handling, so a missing key or a rate limit reads the same here as
+    it does on the single-account path.
+    """
+    spec = MODEL_CHOICES[choice_label]
+    provider, model = spec["provider"], spec["model"]
+    key_hint = "GROQ_API_KEY" if provider == "Groq" else "ANTHROPIC_API_KEY"
+
+    try:
+        client = get_live_client(provider, groq_model=model if provider == "Groq" else None)
+    except Exception as e:
+        return None, f"Could not initialize the model client: {e}. Set {key_hint} in .env."
+
+    error_module = __import__("groq") if provider == "Groq" else __import__("anthropic")
+    try:
+        return compare_accounts(client, digest, model=model), None
+    except error_module.AuthenticationError:
+        return None, f"No valid API credentials for this model — set {key_hint} in .env."
+    except error_module.RateLimitError:
+        return None, "Rate limited by the model provider. Wait a moment and retry."
+    except error_module.APIConnectionError:
+        return None, "Could not reach the model provider (network issue)."
+    except error_module.APIStatusError as e:
+        return None, f"Model provider error ({e.status_code}): {e.message}"
+    except ComparisonError as e:
+        return None, f"The comparison did not come back in a usable shape: {e}"
+    except Exception as e:
+        return None, f"Unexpected error during comparison: {e}"
+
+
+def recommend_decision(decision_input, choice_label):
+    """Ask the adviser model what to do. Returns (decision, error).
+
+    Same provider handling as the other two call sites, so a missing key or
+    a rate limit reads identically wherever it happens.
+    """
+    spec = MODEL_CHOICES[choice_label]
+    provider, model = spec["provider"], spec["model"]
+    key_hint = "GROQ_API_KEY" if provider == "Groq" else "ANTHROPIC_API_KEY"
+
+    try:
+        client = get_live_client(provider, groq_model=model if provider == "Groq" else None)
+    except Exception as e:
+        return None, f"Could not initialize the model client: {e}. Set {key_hint} in .env."
+
+    error_module = __import__("groq") if provider == "Groq" else __import__("anthropic")
+    try:
+        return recommend(client, decision_input, model=model), None
+    except error_module.AuthenticationError:
+        return None, f"No valid API credentials for this model — set {key_hint} in .env."
+    except error_module.RateLimitError:
+        return None, "Rate limited by the model provider. Wait a moment and retry."
+    except error_module.APIConnectionError:
+        return None, "Could not reach the model provider (network issue)."
+    except error_module.APIStatusError as e:
+        return None, f"Model provider error ({e.status_code}): {e.message}"
+    except DecisionError as e:
+        return None, f"The recommendation did not come back in a usable shape: {e}"
+    except Exception as e:
+        return None, f"Unexpected error while drafting the recommendation: {e}"
+
+
+@st.cache_data(show_spinner=False)
+def cached_price_options(report_json: str) -> list:
+    """Priced interventions for a finished report. Free — deterministic
+    arithmetic — but it runs on every rerun, so it is cached like the rest."""
+    return price_options((json.loads(report_json)).get("evidence") or {})
+
+
+def render_intervention(report: dict, fingerprint: str, account_id: str,
+                        model_id: str, choice_label: str) -> None:
+    """The priced options, then an optional written recommendation.
+
+    The calculator renders first and never calls a model: a manager can size
+    every option, and decide, with no key configured and no network. The
+    recommendation is an explicit button on top, so a failure there cannot
+    take the numbers down with it.
+
+    The recommendation is offered even when nothing could be priced. A leak
+    the pipeline cannot size honestly — an account splitting its orders, say,
+    where nothing has actually been lost yet — still deserves a decision; it
+    just does not get a rupee figure attached to it.
+    """
+    st.markdown("### What should we do about it?")
+
+    # Nothing to decide on an account that is fine, or one nobody was
+    # willing to call: acting on a deferred verdict is worse than waiting.
+    if report.get("verdict") == "healthy" or report.get("defer"):
+        render_no_lever(report)
+        return
+
+    options = cached_price_options(json.dumps(report))
+    colors = active()
+
+    if options:
+        chosen = render_options(options, colors)
+        target = chosen["discount_target_pct"] if "discount_target_pct" in chosen else float(
+            chosen["share_recovered_pct"]
+        )
+        lever = chosen["lever"]
+    else:
+        render_early_warning(report)
+        chosen, target, lever = None, 0.0, "unpriced"
+
+    decision = cache.load_decision(fingerprint, account_id, model_id, f"{lever}-{target}")
+
+    act, note = st.columns([1, 3])
+    with act:
+        draft_clicked = st.button(
+            "Draft the case",
+            use_container_width=True,
+            disabled=decision is not None,
+            help="Already drafted for this option — the saved recommendation is shown below."
+            if decision is not None
+            else "One model call: picks the play, argues for it, and writes the brief.",
+        )
+    with note:
+        st.write("")
+        st.caption(
+            "Optional. The figures above are already yours to act on — this adds the commercial "
+            "judgement and the words to use."
+            if options else
+            "Optional. Adds the commercial judgement: which lever fits, what to do, who owns it."
+        )
+
+    if decision is None and draft_clicked:
+        with st.spinner("Drafting the recommendation…"):
+            decision_input = build_decision_input(report, options)
+            decision, decision_error = recommend_decision(decision_input, choice_label)
+        if decision_error:
+            st.warning(f"{decision_error} Anything above is unaffected.")
+            decision = None
+        else:
+            cache.save_decision(fingerprint, account_id, model_id, f"{lever}-{target}", decision)
+            st.rerun()
+
+    if decision:
+        render_decision(decision, colors)
+
+
 DIMENSION_LABELS = {
     "revenue": "Revenue", "margin": "Margin", "discount": "Discount",
     "tier_mix": "Value mix", "category_mix": "Category mix",
@@ -180,9 +397,17 @@ def render_ingestion_report(report: dict) -> None:
         if note.split(" ")[0] not in (report.get("column_mapping") or {}):
             st.caption(f"Derived: {note}")
 
+    # "returns" is excluded from the missing list: it flags whether the file
+    # CONTAINS return lines, not whether returns could be analysed. A file
+    # with no credit notes is not missing a column, and listing it under
+    # "these columns are absent" is simply false
+    # (see timeline.PRESENCE_ONLY_DIMENSIONS).
     dimensions = report.get("analysis_dimensions") or {}
     available = [DIMENSION_LABELS.get(k, k) for k, ok in dimensions.items() if ok]
-    missing = [DIMENSION_LABELS.get(k, k) for k, ok in dimensions.items() if not ok]
+    missing = [
+        DIMENSION_LABELS.get(k, k) for k, ok in dimensions.items()
+        if not ok and k not in PRESENCE_ONLY_DIMENSIONS
+    ]
     st.markdown("**What this file can and cannot show**")
     if available:
         st.success("Analysable: " + ", ".join(available))
@@ -225,6 +450,14 @@ def cached_evidence_pack(df: pd.DataFrame, account_id: str) -> dict:
     # so it is computed once with the rest and shown both before and after
     # the AI step. Without a trained model file it is simply `available: false`.
     return attach_model_opinion(build_evidence_pack(df, account_id))
+
+
+@st.cache_data(show_spinner=False)
+def cached_comparison_digest(df: pd.DataFrame, account_ids: tuple[str, ...]) -> dict:
+    """What the comparison model is shown. Free — it only re-reads the
+    deterministic stages — but it runs on every rerun of the page, so it is
+    cached on the selection like everything else here."""
+    return build_comparison_digest(df, list(account_ids))
 
 
 # --- Data ------------------------------------------------------------------
@@ -343,6 +576,16 @@ model_id = MODEL_CHOICES[choice_label]["model"]
 # before. Changing any of the three is a genuine miss and runs fresh.
 report = cache.load(fingerprint, account_id, model_id)
 
+# A report cached before the evidence timeline existed has a verdict but no
+# case behind it, which would render a PDF full of blanks. Both keys are
+# deterministic functions of the evidence pack, and the fingerprint that
+# found this file already guarantees the pack matches the data the verdict
+# was computed from — so they can be rebuilt here rather than paying for the
+# investigation again.
+if report is not None and "evidence_timeline" not in report:
+    report["evidence"] = pack
+    report["evidence_timeline"] = build_timeline(pack)
+
 with act:
     st.write("")
     investigate_clicked = st.button(
@@ -374,6 +617,8 @@ if report is None and investigate_clicked:
 
 if report:
     render_verdict(report, pack=pack)
+    render_intervention(report, fingerprint, account_id, model_id, choice_label)
+    render_pdf_download(report)
 else:
     st.info(f"{account_id} has not been reviewed yet — click **Investigate with AI** above.")
 
@@ -442,3 +687,106 @@ else:
         "The Answer Key only ever scores a finished verdict — it is never shown to the "
         "agent. It exists for this dataset alone; an unseen file will have none."
     )
+
+
+st.divider()
+
+
+# --- 4. Cross-account comparison -------------------------------------------
+#
+# A separate question from everything above, which is why it is a separate
+# section rather than a change to any of them: sections 1-3 are about ONE
+# account, and this one is about how a set of them read together. It runs off
+# the same dated findings the single-account view uses, so the two can never
+# disagree about what the numbers say.
+
+st.markdown("### 4 · How do these accounts compare?")
+st.caption(
+    "Read several accounts side by side and see which of them are living the same story — "
+    "who is being discounted harder, who is quietly trading down, who is simply growing. "
+    "It reuses the findings already computed above, so nothing new is measured here; the "
+    "AI only groups and explains them in business terms."
+)
+
+# Seeded from step 2, not from the whole book: this section compares the
+# account you just investigated against others you choose, so it starts with
+# that one account and nothing else. With no investigation yet there is
+# nothing to compare from, and the picker stays empty.
+#
+# The widget key carries whether the account has been investigated, because
+# Streamlit applies `default` only when it first sees a key. Without that,
+# the picker rendered empty before the investigation would stay empty after
+# it, and the account you just ran would never appear.
+default_selection = [account_id] if report else []
+
+selected_accounts = st.multiselect(
+    "Accounts to compare",
+    accounts,
+    default=default_selection,
+    key=f"compare_selection_{account_id}_{'investigated' if report else 'new'}",
+    format_func=lambda a: f"{a} — {names[a]}" if names.get(a) else a,
+    help=(
+        "Starts with the account you investigated above. Add the accounts you want to read it "
+        "against — up to "
+        f"{MAX_ACCOUNTS}."
+    ),
+)
+
+if not selected_accounts and not report:
+    st.info(
+        f"Nothing to compare yet — investigate an account in step 2 above and it will appear "
+        "here, ready to read against any others you pick."
+    )
+elif len(selected_accounts) < MIN_ACCOUNTS:
+    st.info(
+        f"Add at least one more account to compare {account_id} against."
+        if selected_accounts
+        else f"Pick at least {MIN_ACCOUNTS} accounts to compare."
+    )
+elif len(selected_accounts) > MAX_ACCOUNTS:
+    st.warning(
+        f"{len(selected_accounts)} accounts selected — a comparison reads at most "
+        f"{MAX_ACCOUNTS} at once. Remove {len(selected_accounts) - MAX_ACCOUNTS} to continue."
+    )
+else:
+    comparison_digest = cached_comparison_digest(df, tuple(selected_accounts))
+    selection_fp = cache.selection_fingerprint(df, selected_accounts)
+
+    # Reuse silently when this exact set of accounts, model and data has been
+    # compared before — the same rule the single-account cache follows.
+    comparison = cache.load_comparison(selection_fp, model_id)
+
+    run_col, note_col = st.columns([1, 3])
+    with run_col:
+        compare_clicked = st.button(
+            "Compare with AI",
+            type="primary",
+            use_container_width=True,
+            disabled=comparison is not None,
+            help="Already compared — the saved result is shown below."
+            if comparison is not None
+            else f"One model call reading all {len(selected_accounts)} accounts together.",
+        )
+    with note_col:
+        st.write("")
+        if comparison is not None:
+            st.caption(
+                f"These {len(selected_accounts)} accounts have already been compared with the "
+                f"**{choice_label.lower()}** model — this is the saved result."
+            )
+
+    if comparison is None and compare_clicked:
+        with st.spinner(
+            f"Comparing {len(selected_accounts)} accounts with the {choice_label.lower()} model…"
+        ):
+            comparison, compare_error = compare_selected_accounts(comparison_digest, choice_label)
+        if compare_error:
+            st.error(compare_error)
+            st.info("The per-account analysis above is unaffected — only the comparison failed.")
+            comparison = None
+        else:
+            cache.save_comparison(selection_fp, model_id, comparison)
+            st.rerun()
+
+    if comparison:
+        render_comparison(comparison, comparison_digest)

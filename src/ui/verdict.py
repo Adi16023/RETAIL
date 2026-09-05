@@ -23,6 +23,8 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
+from pipeline.timeline import PRESENCE_ONLY_DIMENSIONS, READS_AS_ORDER
+
 from .palette import active
 
 VERDICT_PRESENTATION = {
@@ -347,6 +349,54 @@ def _ruled_out_tab(pack: dict | None, report: dict) -> None:
         st.markdown(f"{icon} **{title}** — {detail}")
 
 
+# How each row bears on the verdict. "Checked" is the one that needs saying
+# out loud: those are innocent explanations that were tested and did not
+# account for what was found — absence of a finding, deliberately shown.
+_READS_AS_ICONS = {"concern": "🔴", "reassuring": "🟢", "checked": "🔍", "context": "⚪"}
+
+
+def _timeline_tab(report: dict) -> None:
+    """The dated evidence log — the same rows the PDF prints.
+
+    The rest of this panel is organised by DIMENSION, which is how the
+    analysis is computed but not how a decline is lived through. Re-keying
+    the same facts by date is what lets a reader see that the discount
+    stepped up two months before the margin gave way, rather than reading
+    two separate findings and having to line them up themselves.
+    """
+    timeline = report.get("evidence_timeline") or []
+    if not timeline:
+        st.caption(
+            "No dated timeline on this report — it was produced before the evidence "
+            "log existed. Re-run the investigation to build one."
+        )
+        return
+
+    counts = {kind: sum(1 for e in timeline if e["reads_as"] == kind) for kind in READS_AS_ORDER}
+    st.caption(" · ".join(
+        f"{_READS_AS_ICONS[kind]} {counts[kind]} {kind}" for kind in READS_AS_ORDER if counts[kind]
+    ))
+
+    st.dataframe(
+        pd.DataFrame([
+            {
+                "": _READS_AS_ICONS.get(event["reads_as"], ""),
+                "When": event["when"],
+                "What happened": event["headline"],
+                "Detail": event["detail"],
+            }
+            for event in timeline
+        ]),
+        use_container_width=True,
+        hide_index=True,
+    )
+    st.caption(
+        "Every row is a fact computed by the deterministic stages, dated to the month it "
+        "was observed. \"Checked\" rows are harmless explanations that were tested and did "
+        "not account for what was found."
+    )
+
+
 def _actions_tab(report: dict) -> None:
     actions = report.get("recommended_actions") or []
     if actions:
@@ -542,7 +592,13 @@ def _confidence_tab(report: dict, pack: dict | None) -> None:
             "not as a conclusion to act on."
         )
 
-    unavailable = [n for n, ok in (report.get("analysis_dimensions") or {}).items() if not ok]
+    # "returns" is a presence flag, not a capability flag — an account with no
+    # credit notes was not a gap in coverage. Excluding it is also what makes
+    # the "all six" line below true (see timeline.PRESENCE_ONLY_DIMENSIONS).
+    unavailable = [
+        n for n, ok in (report.get("analysis_dimensions") or {}).items()
+        if not ok and n not in PRESENCE_ONLY_DIMENSIONS
+    ]
     if unavailable:
         st.warning(
             "**Not analysed — these columns were absent from the file:** "
@@ -589,11 +645,14 @@ def render_verdict(report: dict, pack: dict | None = None, cached: bool = False)
     st.markdown("**What's happening**")
     st.markdown(report["narrative"])
 
-    evidence, ruled_out, opinion, actions, confidence = st.tabs(
-        ["Evidence", "Ruled out", "Second opinion", "What to do", "Confidence & limits"]
+    evidence, when, ruled_out, opinion, actions, confidence = st.tabs(
+        ["Evidence", "What changed, and when", "Ruled out", "Second opinion",
+         "What to do", "Confidence & limits"]
     )
     with evidence:
         _evidence_tab(report, pack, colors)
+    with when:
+        _timeline_tab(report)
     with ruled_out:
         _ruled_out_tab(pack, report)
     with opinion:

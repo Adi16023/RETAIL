@@ -63,7 +63,7 @@ ingest → build_evidence_pack → investigate (LLM) → compute_impact → prio
 | 2 Baseline engine | [baseline.py](src/pipeline/baseline.py) | deterministic |
 | 3 Change detection | [detect.py](src/pipeline/detect.py), [changepoint.py](src/pipeline/changepoint.py) | deterministic |
 | — Evidence pack assembly | [evidence.py](src/pipeline/evidence.py) | deterministic |
-| 4 Investigation & attribution | [agent.py](src/pipeline/agent.py) | **the one LLM call** |
+| 4 Investigation & attribution | [agent.py](src/pipeline/agent.py) | **the one LLM call on the verdict path** |
 | 5 Rupee impact | [impact.py](src/pipeline/impact.py) | deterministic |
 | 6 Prioritisation | [prioritize.py](src/pipeline/prioritize.py) | deterministic |
 | 7 Report assembly | [report.py](src/pipeline/report.py) | deterministic |
@@ -107,9 +107,9 @@ Three rules that fall out of this and are easy to break:
 
 ### Invariants that shape the whole design
 
-- **Exactly one LLM call site.** Stage 4 is the only judgement call that can't be reduced to a threshold. Do not add model calls for prioritisation, explanation, or narrative rewriting — narrative and recommended actions are generated once, in Stage 4. Consolidating four LLM stages into one was a deliberate decision (see plan.md).
+- **One LLM call per verdict; three LLM call sites in total, each a distinct judgement.** Stage 4 ([agent.py](src/pipeline/agent.py)) is the only model call on the path to a verdict — do not add model calls for prioritisation, explanation, or narrative rewriting; narrative and actions are generated once there. Two further, optional, on-demand agents sit *after* the verdict and never feed back into it: [compare.py](src/pipeline/compare.py) (one call over a digest of several finished accounts, for a portfolio read) and [decide.py](src/pipeline/decide.py) (one call over a finished report plus deterministically *priced* options, recommending a lever). Both take the same injected client shape, both are given digests rather than raw packs, and neither computes a number. Consolidating the original four verdict stages into one was a deliberate decision (see plan.md); adding a fourth agent needs the same argument — a judgement that cannot be a threshold — and a check against the Groq free tier's 8,000 tokens-per-minute cap, which one pack already brushes.
 - **The LLM never computes a number.** Every figure in any output traces back to deterministic code via the evidence pack or a drill-down tool result. Stage 5 sizes impact from `category_changes` facts, not from anything the model said.
-- **The LLM never sees raw transactions** — only `build_evidence_pack`'s structured JSON.
+- **The LLM never sees raw transactions** — only `build_evidence_pack`'s structured JSON, and only after two filters in `investigate`: `pack_for_prompt` strips every underscore-prefixed key (the `_presentation` block of chart series exists for the PDF report and must never reach the prompt), then `compact_json` rounds floats and drops separator spaces for the token budget. Anything added to the pack for a display surface goes under an underscore key.
 - **Deferring is a feature, not a failure.** `defer=true` with low confidence and a populated `data_needed_if_deferring` is the designed behaviour when history is short or signals conflict; it scores higher than a forced verdict. Don't "improve" the agent toward decisiveness.
 - **Every verdict carries confidence + cited evidence.** An output missing either is a bug.
 - **Stage 1 must never crash on an unfamiliar CSV.** It either resolves the input to the canonical schema (synonym match, then fuzzy match, then derivation) or raises `IngestionError` naming exactly what's missing. This matters because the event's "Reality Test" feeds an unseen file live. Everything past `REQUIRED_FIELDS` is enrichment: present → an extra detection dimension lights up; absent → the analysis narrows and says so. It must never break.

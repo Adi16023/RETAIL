@@ -18,6 +18,7 @@ import pandas as pd
 import streamlit as st
 
 from pipeline.evidence import build_evidence_pack
+from pipeline.timeline import PRESENCE_ONLY_DIMENSIONS
 
 from .charts import (
     category_chart,
@@ -318,7 +319,14 @@ def _render_quality_tab(pack: dict, frame: pd.DataFrame) -> None:
                 f"({episode['months']} months, no recovery yet)."
             )
 
-    unavailable = [name for name, ok in (pack.get("analysis_dimensions") or {}).items() if not ok]
+    # "returns" is excluded: it flags whether return lines are PRESENT, not
+    # whether returns could be analysed. An account that never sent a credit
+    # note has no gap in coverage, and saying otherwise reads as alarming
+    # (see timeline.PRESENCE_ONLY_DIMENSIONS).
+    unavailable = [
+        name for name, ok in (pack.get("analysis_dimensions") or {}).items()
+        if not ok and name not in PRESENCE_ONLY_DIMENSIONS
+    ]
     if unavailable:
         st.warning(
             "**Not analysed — columns absent from this file:** "

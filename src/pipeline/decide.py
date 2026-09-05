@@ -231,7 +231,7 @@ def _win_back(evidence_pack: dict) -> list[dict]:
         revenue_back = total_monthly * fraction
         option = _core(
             "win_back", "Win back the lost line",
-            f"recover {round(fraction * 100)}% of {names}",
+            f"win back {round(fraction * 100)}% of {names}",
             fraction, revenue_back, revenue_back * rate,
         )
         option.update({
@@ -288,7 +288,9 @@ def _margin_recovery(evidence_pack: dict) -> list[dict]:
         recovered = full_gap * fraction
         option = _core(
             "mix_recovery" if downgrade else "margin_recovery", label,
-            f"close {round(fraction * 100)}% of the margin gap", fraction, 0.0, recovered,
+            f"win back {round(fraction * 100)}% of the lost premium mix"
+            if downgrade else f"recover {round(fraction * 100)}% of the lost margin rate",
+            fraction, 0.0, recovered,
         )
         option.update({
             "margin_rate_today_pct": round(recent_pct * 100, 1),
@@ -331,7 +333,7 @@ def _revenue_recovery(evidence_pack: dict) -> list[dict]:
         revenue_back = gap * fraction
         option = _core(
             "revenue_recovery", "Rebuild the account",
-            f"recover {round(fraction * 100)}% of the lost spend",
+            f"rebuild {round(fraction * 100)}% of the lost monthly spend",
             fraction, revenue_back, revenue_back * rate,
         )
         option.update({
@@ -394,6 +396,24 @@ def levers_available(options: list[dict]) -> list[str]:
     return seen
 
 
+def _moved_totals(evidence: dict) -> dict:
+    """What the lines that moved were worth, added up once, here."""
+    moved = [
+        c for c in (evidence.get("product_changes") or [])
+        if c.get("status") in ("disappeared", "declined")
+    ]
+    if not moved:
+        return {}
+    was = sum(c["baseline_monthly_avg"] for c in moved)
+    now = sum(c["recent_monthly_avg"] for c in moved)
+    return {
+        "lines_that_moved": len(moved),
+        "were_worth_per_month": round(was, 2),
+        "now_worth_per_month": round(now, 2),
+        "fallen_away_per_month": round(was - now, 2),
+    }
+
+
 def build_decision_input(report: dict, options: list[dict]) -> dict:
     """What the adviser model is shown: the finished verdict in business
     terms, the money, and the priced options — never the raw evidence pack.
@@ -449,6 +469,36 @@ def build_decision_input(report: dict, options: list[dict]) -> dict:
             ),
             "priority": (report.get("prioritization") or {}).get("priority"),
         },
+        # The named lines that actually moved, with what each was worth. Stage 3
+        # already worked this out, so an adviser that says "pull the last six
+        # months of orders to find which SKUs were lost" is setting homework
+        # it has the answer to. Naming them is the difference between a plan
+        # and a to-do list.
+        "products_that_moved": [
+            {
+                "product": change["product_id"],
+                "category": change["category"],
+                "status": change["status"],
+                "was_per_month": change["baseline_monthly_avg"],
+                "now_per_month": change["recent_monthly_avg"],
+            }
+            for change in (evidence.get("product_changes") or [])
+            if change.get("status") in ("disappeared", "declined")
+        ],
+        # Totals, precomputed. Handed a list of six products and no total, the
+        # model summed them itself and produced a figure matching nothing —
+        # the exact failure the no-arithmetic rule exists to prevent. A list
+        # without its total is an invitation to compute one.
+        "products_that_moved_totals": _moved_totals(evidence),
+        "categories_that_stopped": [
+            {
+                "category": change["category"],
+                "was_per_month": change.get("before_monthly_median"),
+                "months_at_zero": change.get("consecutive_months_at_zero"),
+            }
+            for change in (evidence.get("category_changes") or [])
+            if change.get("defected")
+        ],
         "priced_options": options,
         "note": (
             "priced_options were computed by deterministic code from this account's own "
@@ -471,10 +521,19 @@ size of the discount reduction being proposed, is already provided. If a number 
 exist, make the point without it. A figure you produced yourself is a serious failure, and it is \
 the one failure that would make this whole system untrustworthy.
 
+THAT INCLUDES ADDING THINGS UP. Do not total a list, do not take a percentage of a total, do \
+not work out what a share of something comes to. Every total you could want is already given to \
+you — `products_that_moved_totals` holds what the affected lines were worth together, and each \
+priced option already carries its own money. When you were handed six products and no total, \
+the temptation is to sum them; resist it, because you will get it wrong and nobody downstream \
+will catch it.
+
 DO NOT ROUND, EITHER. Rs 14,944 is not "about Rs 15,000", and 6,799 is not "approx. 6,800". \
 Copy every figure exactly as written, to the rupee and the decimal place. Tidying a number is \
 still changing it, and a reader who checks a rounded figure against the analysis finds a \
-mismatch — which costs more trust than the tidier sentence was ever worth.
+mismatch — which costs more trust than the tidier sentence was ever worth. "Approximately", \
+"roughly" and "around" in front of a number are the tell: if you feel the need to hedge a \
+figure, you have changed it. Write it exactly and drop the hedge.
 
 NEVER PREDICT HOW THE CUSTOMER WILL REACT. You have this account's transaction history. You do \
 NOT have its price sensitivity, its contract terms, its alternative suppliers or its budget. So \
@@ -531,11 +590,34 @@ correlate with everything and cause nothing by themselves. You may use them to t
 recommendation ("this relationship is only four months old, so ask for less at once"). Never \
 present one as the reason the leak happened.
 
+NEVER SEND THE READER TO FIND SOMETHING YOU WERE ALREADY GIVEN. `products_that_moved` names \
+every line that fell away or shrank, with what each was worth a month, and `categories_that_stopped` \
+names any that stopped outright. So do not write "pull the last six months of orders to identify \
+which lines were lost" — say which lines were lost, and what each was worth. A step that asks \
+someone to look up an answer sitting in this brief wastes their afternoon and tells them the \
+analysis did not really do its job. Name the lines that stopped ENTIRELY too, not only the ones \
+that shrank — a line at zero is the most concrete thing you can put in front of a buyer, and \
+skipping it because it no longer appears in recent orders is precisely backwards. Reserve `check_before_acting` for things genuinely outside \
+the data: contract terms, who the competitor is, whether the customer discontinued a line \
+themselves.
+
+A TARGET IS NOT A DECISION. "Close 75% of the margin gap" is an outcome, not something anyone \
+can do on Monday morning. `what_to_do` must contain the actual work — who is called, what is \
+pulled up, what is proposed, what is signed off — in the order it happens, starting with the \
+first step. If a reader finishes your answer still asking "yes, but what do I do?", you have \
+written a summary of the problem rather than a decision about it.
+
 WRITE FOR THE PERSON WHO HAS TO WALK INTO THE ROOM. The brief must be usable in a real \
 conversation: specific, factual, free of internal vocabulary. Never use this system's status names \
 (erosion_detected, creep_detected, material_decline, downgrade_detected, premiumisation_detected, \
 fragmentation_detected, baskets_shrinking, mild_drift, defected, insufficient_history) or lightly \
 reworded versions of them. Say what the customer has actually been doing.
+
+A PARTIAL RECOVERY IS A GOOD OUTCOME. You do not have to get everything back. Recovering part \
+of what was lost, on a target the account team can realistically hit, is worth more than an \
+ambitious plan nobody executes — and far more than doing nothing. Choose the option you would \
+actually back, not the largest one on the list. Be explicit that you are taking part of the \
+value where that is the sensible call; recommending the maximum by default is not judgement.
 
 SAY WHETHER YOUR RECOMMENDATION ACTUALLY FIXES THE ACCOUNT. Each priced option carries \
 `restores_account_to_healthy`, decided by the same threshold the analysis itself uses. An option \
@@ -550,6 +632,10 @@ category moved to a competitor or was discontinued by the customer. Name those a
 acting, not as caveats afterwards. Then name the specific, observable changes that would show the \
 intervention is working, and when to look. A recommendation nobody can check later is one nobody \
 will trust twice.
+
+You are choosing the option, not confirming one the reader already picked — they have not \
+picked anything. Name the option you recommend, say plainly what it gets them, and say what the \
+other options would have got them instead.
 
 Call submit_decision exactly once."""
 
@@ -595,6 +681,28 @@ SUBMIT_DECISION_TOOL = {
                     "Why the weaker option was rejected. 'Not applicable' if there was none."
                 ),
             },
+            "expected_result": {
+                "type": "string",
+                "description": (
+                    "What the business gets if this is carried out, in one plain sentence with "
+                    "the figures from the chosen option — the money per month, what happens to "
+                    "the margin rate or the lost line, and whether that returns the account to "
+                    "healthy. The reader must not have to work any of this out."
+                ),
+            },
+            "what_to_do": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "The concrete steps someone carries out, in order, starting with the first "
+                    "thing they do. Each must be an action a named person can perform and tick "
+                    "off. Name the specific products, categories and figures from the brief "
+                    "inside the steps — 'build the proposal around PT-Cordless Drill 18V "
+                    "(was Rs 45,460/month) and DG-Thermal Imager (was Rs 28,079/month)', not "
+                    "'identify which lines were lost'. Never a restatement of the target. This "
+                    "is the part of the answer the reader acts on; everything else supports it."
+                ),
+            },
             "talking_points": {
                 "type": "array",
                 "items": {"type": "string"},
@@ -635,7 +743,9 @@ SUBMIT_DECISION_TOOL = {
         },
         "required": [
             "action_type", "recommended_option", "headline", "rationale",
-            "why_not_more_aggressive", "why_not_less_aggressive", "talking_points",
+            "why_not_more_aggressive", "why_not_less_aggressive", "expected_result",
+            "what_to_do",
+            "talking_points",
             "check_before_acting", "restores_account_to_healthy", "what_is_left_over",
             "downside_if_wrong", "owner", "timing",
             "how_we_will_know_it_worked", "review_in_months",
@@ -654,7 +764,15 @@ class DecisionError(Exception):
 # that thinking is charged to the same budget — sizing this from the length
 # of the visible answer truncates mid-JSON, which the provider returns as an
 # unparseable-arguments error rather than as a short reply.
-OUTPUT_TOKENS = 6000
+#
+# Capped rather than merely generous, because providers charge the REQUESTED
+# ceiling against a rate limit, not the tokens actually used. At 6000 this
+# call billed ~9,155 tokens against Groq's 8,000-per-minute free tier and so
+# could never succeed there, however long the caller waited — a failure that
+# looks like congestion and is really a request that does not fit. 4000
+# leaves roughly four times the longest answer observed and keeps the whole
+# request inside that ceiling.
+OUTPUT_TOKENS = 4000
 
 
 def recommend(client, decision_input: dict, model: str = DEFAULT_MODEL) -> dict:

@@ -40,7 +40,7 @@ def header(title: str, kicker: str = "") -> None:
         f"""<header class="rl-masthead rl-rise">
           <div>
             {kicker_html}
-            <h1 class="rl-title">{escape(title)}</h1>
+            <p class="rl-title">{escape(title)}</p>
           </div>
         </header>""",
         unsafe_allow_html=True,
@@ -60,7 +60,7 @@ def sidebar_brand(title: str, kicker: str = "") -> None:
 def page(title: str, caption: str) -> None:
     st.markdown(
         f"""<section class="rl-step rl-rise">
-          <h2 class="rl-step-title">{escape(title)}</h2>
+          <p class="rl-step-title">{escape(title)}</p>
           <p class="rl-step-caption">{escape(caption)}</p>
         </section>""",
         unsafe_allow_html=True,
@@ -70,7 +70,7 @@ def page(title: str, caption: str) -> None:
 def identity(title: str, meta: str) -> None:
     st.markdown(
         f"""<div class="rl-identity rl-rise">
-          <h3 class="rl-identity-title">{escape(title)}</h3>
+          <p class="rl-identity-title">{escape(title)}</p>
           <p class="rl-identity-meta">{meta}</p>
         </div>""",
         unsafe_allow_html=True,
@@ -189,6 +189,17 @@ h1, h2, h3, h4, p, label,
 [data-testid="stDecoration"],
 [data-testid="stStatusWidget"],
 #MainMenu, footer, .stDeployButton {{
+  display: none !important;
+}}
+
+/* Streamlit pins a heading-anchor link next to every h1–h4. Hide it. */
+[data-testid="stHeaderActionElements"],
+[data-testid="stHeadingWithActionElements"] a,
+[data-testid="stHeadingWithActionElements"] [data-testid="StyledLinkIconContainer"],
+.stHeadingWithActionElements a,
+.stMarkdown h1 a, .stMarkdown h2 a, .stMarkdown h3 a, .stMarkdown h4 a,
+[data-testid="stMarkdownContainer"] a[href^="#"],
+[data-testid="stHeading"] a[href^="#"] {{
   display: none !important;
 }}
 
@@ -746,6 +757,22 @@ hr, [data-testid="stDivider"] {{
   transform: none !important;
 }}
 
+[class*="st-key-file-info"] .stButton > button,
+[class*="st-key-file-info"] button {{
+  background: color-mix(in oklab, var(--youkti-tertiary) 28%, white) !important;
+  border: 1px solid color-mix(in oklab, var(--youkti-tertiary) 55%, white) !important;
+  color: #1f4e5a !important;
+  border-radius: 0.375rem !important;
+  padding-left: 0.85rem !important;
+  padding-right: 0.85rem !important;
+  box-shadow: none !important;
+}}
+[class*="st-key-file-info"] button:hover {{
+  background: color-mix(in oklab, var(--youkti-tertiary) 40%, white) !important;
+  border-color: var(--youkti-tertiary) !important;
+  color: #1f4e5a !important;
+}}
+
 /* One border on the field — not on the wrapper as well. */
 [data-testid="stSelectbox"] > div,
 [data-testid="stMultiSelect"] > div {{
@@ -879,8 +906,191 @@ hr, [data-testid="stDivider"] {{
   box-shadow: var(--rl-shadow);
 }}
 
+.rl-book-wrap {{
+  width: 100%;
+  height: calc(100dvh - 17rem);
+  max-height: calc(100dvh - 17rem);
+  overflow: auto;
+  border: 1px solid var(--rl-line);
+  border-radius: 12px;
+  box-shadow: var(--rl-shadow);
+  background: #fff;
+}}
+.rl-book {{
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}}
+.rl-book th {{
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.65rem 0.75rem;
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--rl-muted);
+  background: #fff;
+  border-bottom: 1px solid var(--rl-line);
+  white-space: nowrap;
+}}
+.rl-book td {{
+  padding: 0.7rem 0.75rem;
+  border-bottom: 1px solid var(--rl-line);
+  color: var(--rl-ink);
+  white-space: nowrap;
+}}
+.rl-book tbody tr {{
+  position: relative;
+  cursor: pointer;
+}}
+.rl-book tbody tr:last-child td {{
+  border-bottom: none;
+}}
+.rl-book tbody tr:hover td {{
+  background: color-mix(in oklab, var(--youkti-primary) 5%, white);
+}}
+.rl-book a.rl-book-hit {{
+  display: block;
+  margin: -0.7rem -0.75rem;
+  padding: 0.7rem 0.75rem;
+  color: inherit;
+  text-decoration: none;
+}}
+.rl-book td:first-child a.rl-book-hit {{
+  font-weight: 650;
+}}
+.rl-book-status {{
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.12rem 0.5rem 0.12rem 0.4rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--sig) 14%, white);
+  color: var(--sig);
+  font-weight: 650;
+}}
+.rl-book-status-icon {{
+  font-size: 0.72rem;
+  line-height: 1;
+}}
+
+[class*="st-key-account_pagination"] {{
+  margin-top: 1rem !important;
+  padding-top: 0.15rem !important;
+  min-height: 2.75rem !important;
+  overflow: visible !important;
+}}
+[class*="st-key-account_pagination"] [data-testid="stHorizontalBlock"],
+[class*="st-key-account_pagination"] [data-testid="stVerticalBlock"],
+[class*="st-key-account_pagination"] [data-testid="stColumn"],
+[class*="st-key-account_pagination"] [data-testid="element-container"] {{
+  overflow: visible !important;
+}}
+[class*="st-key-account-page-"] {{
+  flex: 0 0 2rem !important;
+  width: 2rem !important;
+  min-width: 2rem !important;
+}}
+[class*="st-key-account-page-"] .stButton > button,
+[class*="st-key-account-page-"] button {{
+  width: 2rem !important;
+  min-width: 2rem !important;
+  max-width: 2rem !important;
+  min-height: 2rem !important;
+  height: 2rem !important;
+  padding: 0 !important;
+}}
+[class*="st-key-account_rows_per_page"] {{
+  max-width: 5.5rem;
+}}
+
+/* Always-on outline — do not clear the wrapper border first, or it never shows. */
+[class*="st-key-account_search"] {{
+  width: 100%;
+}}
+[class*="st-key-account_search"] [data-baseweb="input"],
+[class*="st-key-account_search"] [data-baseweb="input"] > div,
+[class*="st-key-account_search"] [data-testid="stTextInputRootElement"] {{
+  min-height: 2.5rem !important;
+  border: 1px solid var(--rl-line) !important;
+  border-radius: 0.375rem !important;
+  background: #fff !important;
+  box-shadow: 0 0 0 1px var(--rl-line) !important;
+}}
+[class*="st-key-account_search"] input {{
+  min-height: 2.5rem !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}}
+[class*="st-key-account_search"]:hover [data-baseweb="input"],
+[class*="st-key-account_search"]:hover [data-baseweb="input"] > div {{
+  border-color: var(--youkti-primary) !important;
+  box-shadow: 0 0 0 1px var(--youkti-primary) !important;
+}}
+[class*="st-key-account_search"]:focus-within [data-baseweb="input"],
+[class*="st-key-account_search"]:focus-within [data-baseweb="input"] > div {{
+  border-color: var(--youkti-primary) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--youkti-primary) 28%, transparent) !important;
+}}
+
 [data-testid="stPopover"] button {{
-  border-radius: 11px !important;
+  min-height: 2.5rem !important;
+  border: 1px solid var(--rl-line) !important;
+  border-radius: 0.375rem !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}}
+[data-testid="stPopover"] button:hover {{
+  border-color: var(--youkti-primary) !important;
+}}
+[class*="st-key-account_filters"] button {{
+  gap: 0.4rem !important;
+}}
+[class*="st-key-account_filters"] button::after,
+[class*="st-key-account_filters"] button::before {{
+  content: none !important;
+  display: none !important;
+}}
+/* Funnel stays; anything after the label is Streamlit's chevron. */
+[class*="st-key-account_filters"] button [data-testid="stIconMaterial"] ~ [data-testid="stIconMaterial"],
+[class*="st-key-account_filters"] button [data-testid="stIcon"] ~ [data-testid="stIcon"],
+[class*="st-key-account_filters"] button p ~ [data-testid="stIconMaterial"],
+[class*="st-key-account_filters"] button p ~ [data-testid="stIcon"],
+[class*="st-key-account_filters"] button [data-testid="stMarkdownContainer"] ~ [data-testid="stIconMaterial"],
+[class*="st-key-account_filters"] button [data-testid="stMarkdownContainer"] ~ [data-testid="stIcon"],
+[class*="st-key-account_filters"] button [data-testid="stExpanderToggleIcon"],
+[class*="st-key-account_filters"] button > div > :last-child:not(:first-child):has([data-testid="stIconMaterial"]),
+[class*="st-key-account_filters"] button > div > :last-child:not(:first-child):has(svg),
+[class*="st-key-account_filters"] button > :last-child:not(:first-child):has([data-testid="stIconMaterial"]),
+[class*="st-key-account_filters"] button > div > :last-child:not(:first-child):has(svg) {{
+  display: none !important;
+}}
+
+[class*="st-key-account_filter_"] [data-baseweb="select"] > div,
+[class*="st-key-account_filter_"] [data-baseweb="select"] > div:first-child,
+[data-testid="stPopover"] [data-baseweb="select"] > div {{
+  min-height: 2.5rem !important;
+  border: 1px solid var(--rl-line) !important;
+  border-radius: 0.375rem !important;
+  background: #fff !important;
+  box-shadow: 0 0 0 1px var(--rl-line) !important;
+}}
+[class*="st-key-account_filter_"]:hover [data-baseweb="select"] > div,
+[data-testid="stPopover"] [data-testid="stSelectbox"]:hover [data-baseweb="select"] > div,
+[data-testid="stPopover"] [data-testid="stMultiSelect"]:hover [data-baseweb="select"] > div {{
+  border-color: var(--youkti-primary) !important;
+  box-shadow: 0 0 0 1px var(--youkti-primary) !important;
+}}
+[class*="st-key-account_filter_"]:focus-within [data-baseweb="select"] > div,
+[data-testid="stPopover"] [data-testid="stSelectbox"]:focus-within [data-baseweb="select"] > div,
+[data-testid="stPopover"] [data-testid="stMultiSelect"]:focus-within [data-baseweb="select"] > div {{
+  border-color: var(--youkti-primary) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--youkti-primary) 28%, transparent) !important;
 }}
 
 /* Radio pills */
@@ -894,9 +1104,65 @@ hr, [data-testid="stDivider"] {{
   transform: translateY(-1px);
 }}
 
-/* Spinner */
+@keyframes rl-spin {{
+  to {{ transform: rotate(360deg); }}
+}}
+
+/* Youkti circle — replace Streamlit's fade/blur while the script reruns. */
+[data-testid="stApp"][data-test-script-state="running"] [data-testid="stAppViewContainer"],
+[data-testid="stApp"][data-test-script-state="rerunRequested"] [data-testid="stAppViewContainer"] {{
+  filter: none !important;
+}}
+[data-testid="stApp"][data-test-script-state="running"]::after,
+[data-testid="stApp"][data-test-script-state="rerunRequested"]::after {{
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: color-mix(in oklab, #fff 64%, transparent);
+  z-index: 9998;
+  pointer-events: all;
+}}
+[data-testid="stApp"][data-test-script-state="running"]::before,
+[data-testid="stApp"][data-test-script-state="rerunRequested"]::before {{
+  content: "";
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 2.35rem;
+  height: 2.35rem;
+  margin: -1.175rem 0 0 -1.175rem;
+  border: 3px solid color-mix(in oklab, var(--youkti-primary) 22%, white);
+  border-top-color: var(--youkti-primary);
+  border-radius: 50%;
+  animation: rl-spin 0.7s linear infinite;
+  z-index: 9999;
+  pointer-events: none;
+}}
+[data-testid="stSkeletonElement"],
+.stSkeleton {{
+  display: none !important;
+}}
+
 [data-testid="stSpinner"] {{
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.55rem !important;
   letter-spacing: -0.01em;
+}}
+[data-testid="stSpinner"] img,
+[data-testid="stSpinner"] svg,
+[data-testid="stSpinner"] [data-testid="stIconMaterial"] {{
+  display: none !important;
+}}
+[data-testid="stSpinner"]::before {{
+  content: "";
+  width: 1.15rem;
+  height: 1.15rem;
+  border: 2px solid color-mix(in oklab, var(--youkti-primary) 22%, white);
+  border-top-color: var(--youkti-primary);
+  border-radius: 50%;
+  animation: rl-spin 0.65s linear infinite;
+  flex: 0 0 auto;
 }}
 
 /* Caption + markdown polish */
@@ -930,6 +1196,42 @@ hr, [data-testid="stDivider"] {{
     animation: none !important;
     transition: none !important;
   }}
+  [data-testid="stApp"][data-test-script-state="running"]::before,
+  [data-testid="stSpinner"]::before {{
+    animation: rl-spin 0.7s linear infinite !important;
+  }}
+}}
+
+/* Last so Streamlit / earlier select rules cannot wipe the outline. */
+[class*="st-key-account_rows_per_page"] {{
+  border: 1px solid #d1d5db !important;
+  border-radius: 0.375rem !important;
+  background: #fff !important;
+  box-sizing: border-box !important;
+  max-width: 6.25rem !important;
+  margin-left: -0.35rem !important;
+  min-height: 2.25rem !important;
+  height: auto !important;
+  overflow: visible !important;
+}}
+[class*="st-key-account_rows_per_page"] [data-testid="stSelectbox"],
+[class*="st-key-account_rows_per_page"] [data-baseweb="select"],
+[class*="st-key-account_rows_per_page"] [data-testid="stSelectbox"] > div,
+[class*="st-key-account_rows_per_page"] [data-baseweb="select"] > div {{
+  min-height: 2.25rem !important;
+  height: auto !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  overflow: visible !important;
+}}
+[class*="st-key-account_rows_per_page"]:hover {{
+  border-color: var(--youkti-primary) !important;
+}}
+[class*="st-key-account_rows_per_page"]:focus-within {{
+  border-color: var(--youkti-primary) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--youkti-primary) 28%, transparent) !important;
 }}
 </style>
 """

@@ -1,9 +1,11 @@
 """
 Revenue Leakage Investigator — the demo surface.
 
-A home sidebar with four pages, one account at a time:
+A home sidebar with four pages. Detect opens on the account book; click a
+row to open that account. The other three pages then work on the one you
+opened:
 
-  Detect       the deterministic evidence
+  Detect       the book, then the deterministic evidence
   Investigate  the single LLM call, on demand
   Attribute    scored against the Answer Key
   Prioritise   several finished accounts, side by side
@@ -55,6 +57,7 @@ from pipeline.prioritize import prioritize
 from pipeline.report import assemble_report
 from pipeline.timeline import PRESENCE_ONLY_DIMENSIONS, build_timeline
 from ui import cache
+from ui.accounts import build_account_catalogue, render_account_book
 from ui.compare import render_comparison
 from ui.decide import render_decision, render_early_warning, render_no_lever, render_options
 from ui.palette import active
@@ -105,6 +108,11 @@ PAGES = [
             "it earns you, how hard you are discounting, what they buy, and how they order. A "
             "problem usually shows up in one of these long before it shows up in the topline."
         ),
+        "list_title": "Which accounts need a look?",
+        "list_caption": (
+            "Every account in this file, with the same figures the analysis uses. Search and "
+            "filter here — the rows are already computed. Click a row to open the month-by-month view."
+        ),
     },
     {
         "key": "verdict",
@@ -151,6 +159,18 @@ PAGES = [
 
 def _set_home_page(page_key: str) -> None:
     st.session_state["home_page"] = page_key
+
+
+def _open_account(account_id: str) -> None:
+    st.session_state["selected_account"] = account_id
+
+
+def _back_to_account_book() -> None:
+    st.session_state["selected_account"] = None
+    st.session_state["home_page"] = "data"
+    st.session_state.pop("account_book", None)
+    if "account" in st.query_params:
+        del st.query_params["account"]
 
 
 # --- Live model access -----------------------------------------------------
@@ -562,6 +582,12 @@ def cached_account_index(df: pd.DataFrame) -> tuple[dict, list]:
 
 
 @st.cache_data(show_spinner=False, hash_funcs={pd.DataFrame: cache.dataframe_identity})
+def cached_account_catalogue(df: pd.DataFrame) -> pd.DataFrame:
+    """One row per account, from the same packs Detect already builds."""
+    return build_account_catalogue(df)
+
+
+@st.cache_data(show_spinner=False, hash_funcs={pd.DataFrame: cache.dataframe_identity})
 def cached_comparison_digest(df: pd.DataFrame, account_ids: tuple[str, ...]) -> dict:
     """What the comparison model is shown. Free — it only re-reads the
     deterministic stages — but it runs on every rerun of the page, so it is
@@ -575,6 +601,8 @@ if "home_page" not in st.session_state:
     st.session_state["home_page"] = "data"
 if "model_choice" not in st.session_state:
     st.session_state["model_choice"] = next(iter(MODEL_CHOICES))
+if "selected_account" not in st.session_state:
+    st.session_state["selected_account"] = None
 
 with st.sidebar:
     theme.sidebar_brand("Revenue Leakage Investigator")
@@ -619,41 +647,26 @@ else:
     df, ingestion_report = load_reference_data()
 
 
-# --- Account picker (the one control everything hangs off) -----------------
+# --- Account (the one control everything hangs off) ------------------------
 
 names, accounts = cached_account_index(df)
 
-# Dataset size line (accounts / orders / date range) sat beside the picker.
-# It restated what the file already is; hide it so the account field is the
-# only thing on this row.
-# label = "Reference dataset" if using_reference else f"Uploaded: {uploaded_file.name}"
-# st.caption(
-#     f"**{label}** — **{len(accounts)}** accounts · "
-#     f"**{ingestion_report['n_orders']:,}** orders · "
-#     f"**{ingestion_report['rows_total_raw']:,}** transaction lines · "
-#     f"{ingestion_report['date_range'][0]} → {ingestion_report['date_range'][1]}"
-# )
+# A leftover id from a previous file must not silently analyse the wrong book.
+if st.session_state["selected_account"] not in set(accounts):
+    st.session_state["selected_account"] = None
 
-picker, file_info = st.columns([3, 1], vertical_alignment="bottom", gap="medium")
-with picker:
-    account_id = st.selectbox(
-        "Account under investigation", accounts,
-        format_func=lambda a: f"{a} — {names[a]}" if names.get(a) else a,
-    )
-with file_info:
-    if st.button("How this file was read", type="tertiary", icon=":material/info:"):
-        show_ingestion_modal(ingestion_report)
-
+account_id = st.session_state["selected_account"]
 choice_label = st.session_state["model_choice"]
 model_id = MODEL_CHOICES[choice_label]["model"]
-fingerprint = cached_account_fingerprint(df, account_id)
-report = cache.load(fingerprint, account_id, model_id)
+fingerprint = cached_account_fingerprint(df, account_id) if account_id else None
+report = cache.load(fingerprint, account_id, model_id) if account_id else None
 
 # Packs are only built for pages that show them. Attribute / Prioritise read
 # the finished report; hashing and assembling the pack on those clicks was
-# wasted work that showed up as lag.
-needs_pack = current_page in ("data", "verdict") or (
-    report is not None and "evidence_timeline" not in report
+# wasted work that showed up as lag. The account book is its own cached table.
+needs_pack = account_id is not None and (
+    current_page in ("data", "verdict")
+    or (report is not None and "evidence_timeline" not in report)
 )
 pack = cached_evidence_pack(df, account_id) if needs_pack else None
 
@@ -668,14 +681,64 @@ if pack is not None and report is not None and "evidence_timeline" not in report
     report["evidence_timeline"] = build_timeline(pack)
 
 page_spec = next(p for p in PAGES if p["key"] == current_page)
-theme.page(page_spec["title"], page_spec["caption"])
+
+
+def _file_info_button() -> None:
+    if st.button(
+        "How this file was read", type="tertiary", icon=":material/info:", key="file-info",
+    ):
+        show_ingestion_modal(ingestion_report)
+
+
+def _account_identity_bar() -> None:
+    """Selected account on pages that are not the book, plus a way back."""
+    back, who, info = st.columns([1.2, 3, 1.4], vertical_alignment="center")
+    with back:
+        st.button(
+            "All accounts",
+            icon=":material/arrow_back:",
+            type="tertiary",
+            on_click=_back_to_account_book,
+            help="Back to the account list",
+        )
+    with who:
+        label = f"{account_id} — {names[account_id]}" if names.get(account_id) else account_id
+        st.caption(label)
+    with info:
+        _file_info_button()
+
+
+def _need_an_account() -> None:
+    theme.page(page_spec["title"], page_spec["caption"])
+    st.info("Pick an account from Detect — the table is the starting point.")
+    if st.button("Open the account list", type="primary"):
+        _back_to_account_book()
+        st.rerun()
 
 
 def render_data_page() -> None:
+    if account_id is None:
+        theme.page(page_spec["list_title"], page_spec["list_caption"])
+        opened = render_account_book(
+            cached_account_catalogue(df),
+            trailing=_file_info_button,
+        )
+        if opened:
+            _open_account(opened)
+            st.rerun()
+        return
+
+    _account_identity_bar()
+    theme.page(page_spec["title"], page_spec["caption"])
     render_account_dashboard(df, account_id, pack=pack)
 
 
 def render_verdict_page() -> None:
+    if account_id is None:
+        _need_an_account()
+        return
+    _account_identity_bar()
+    theme.page(page_spec["title"], page_spec["caption"])
     # The control row keeps the SAME three columns and the SAME single button in
     # every state — only the button's enabled-ness and the status text change.
     # Swapping the button's label and type between "Run" and "Re-run" made the row
@@ -725,6 +788,11 @@ def render_verdict_page() -> None:
 
 
 def render_score_page() -> None:
+    if account_id is None:
+        _need_an_account()
+        return
+    _account_identity_bar()
+    theme.page(page_spec["title"], page_spec["caption"])
     try:
         answer_key = load_answer_key()
     except AnswerKeyUnavailable:
@@ -780,6 +848,15 @@ def render_score_page() -> None:
 
 
 def render_compare_page() -> None:
+    if account_id:
+        _account_identity_bar()
+    else:
+        _, info = st.columns([4, 1])
+        with info:
+            _file_info_button()
+    theme.page(page_spec["title"], page_spec["caption"])
+    if account_id is None:
+        st.caption("Pick accounts below, or open one from Detect first.")
     # Seeded from the AI verdict, not from the whole book: this page compares
     # the account you just investigated against others you choose, so it starts
     # with that one account and nothing else. With no investigation yet there

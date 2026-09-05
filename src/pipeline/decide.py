@@ -471,6 +471,11 @@ size of the discount reduction being proposed, is already provided. If a number 
 exist, make the point without it. A figure you produced yourself is a serious failure, and it is \
 the one failure that would make this whole system untrustworthy.
 
+DO NOT ROUND, EITHER. Rs 14,944 is not "about Rs 15,000", and 6,799 is not "approx. 6,800". \
+Copy every figure exactly as written, to the rupee and the decimal place. Tidying a number is \
+still changing it, and a reader who checks a rounded figure against the analysis finds a \
+mismatch — which costs more trust than the tidier sentence was ever worth.
+
 NEVER PREDICT HOW THE CUSTOMER WILL REACT. You have this account's transaction history. You do \
 NOT have its price sensitivity, its contract terms, its alternative suppliers or its budget. So \
 never estimate how much volume a price change would cost, how likely a win-back is to succeed, or \

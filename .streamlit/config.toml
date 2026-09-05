@@ -7,3 +7,7 @@
 # sitting on an unvalidated dark one.
 [theme]
 base = "light"
+primaryColor = "#7650A1"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#252525"

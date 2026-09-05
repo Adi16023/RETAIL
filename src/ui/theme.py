@@ -1,0 +1,935 @@
+"""
+Visual chrome for the Streamlit demo.
+
+Mirrors youkti-app suite chrome (AppTab, AppStepper, Button, Card tokens)
+because those React components cannot be imported here. Chart colours stay
+in palette.py — they were validated against a white surface, and every chart
+still draws on that surface. Copy is unchanged.
+
+Motion is gated on Streamlit session state so a widget rerun does not replay
+entrance animations. Hover and focus transitions stay on; they are what make
+the page feel smooth after the first paint. `prefers-reduced-motion` turns
+the rest off.
+"""
+
+from __future__ import annotations
+
+from html import escape
+
+import streamlit as st
+
+from .palette import COLORS
+
+def inject() -> None:
+    """Apply the theme. Safe to call on every rerun — Streamlit requires it.
+
+    Injected via ``st.html`` so the stylesheet is not scoped to a markdown
+    block — markdown-scoped CSS cannot widen ``stMainBlockContainer``.
+    """
+    first_paint = not st.session_state.get("_rl_theme_settled")
+    st.session_state["_rl_theme_settled"] = True
+    extra = "" if first_paint else (
+        "<style>.rl-rise{animation:none!important;opacity:1;transform:none}</style>"
+    )
+    st.html(_CSS + extra, width="stretch")
+
+
+def header(title: str, kicker: str = "") -> None:
+    kicker_html = f'<div class="rl-kicker">{escape(kicker)}</div>' if kicker else ""
+    st.markdown(
+        f"""<header class="rl-masthead rl-rise">
+          <div>
+            {kicker_html}
+            <h1 class="rl-title">{escape(title)}</h1>
+          </div>
+        </header>""",
+        unsafe_allow_html=True,
+    )
+
+
+def sidebar_brand(title: str, kicker: str = "") -> None:
+    # A <p>, not <header>/<h1> — Streamlit's markdown sanitizer strips those
+    # and dumps the leftovers as visible source.
+    kicker_html = f'<p class="rl-kicker">{escape(kicker)}</p>' if kicker else ""
+    st.markdown(
+        f'{kicker_html}<p class="rl-side-title">{escape(title)}</p>',
+        unsafe_allow_html=True,
+    )
+
+
+def page(title: str, caption: str) -> None:
+    st.markdown(
+        f"""<section class="rl-step rl-rise">
+          <h2 class="rl-step-title">{escape(title)}</h2>
+          <p class="rl-step-caption">{escape(caption)}</p>
+        </section>""",
+        unsafe_allow_html=True,
+    )
+
+
+def identity(title: str, meta: str) -> None:
+    st.markdown(
+        f"""<div class="rl-identity rl-rise">
+          <h3 class="rl-identity-title">{escape(title)}</h3>
+          <p class="rl-identity-meta">{meta}</p>
+        </div>""",
+        unsafe_allow_html=True,
+    )
+
+
+def status_strip(items: list[dict]) -> None:
+    """items: label, color, icon, text, hint."""
+    cells = []
+    for i, item in enumerate(items):
+        cells.append(
+            f"""<div class="rl-signal rl-rise" style="--d:{i};--sig:{escape(item['color'], quote=True)}" title="{escape(item.get('hint') or '', quote=True)}">
+              <div class="rl-signal-label">{escape(item['label'])}</div>
+              <div class="rl-signal-value">
+                <span class="rl-signal-icon">{escape(item['icon'])}</span>
+                {escape(item['text'])}
+              </div>
+            </div>"""
+        )
+    st.markdown(f'<div class="rl-signal-row">{"".join(cells)}</div>', unsafe_allow_html=True)
+
+
+def kpi_row(tiles: list[dict]) -> None:
+    """tiles: label, value, delta, tone ('good'|'bad'|'neutral'), hint."""
+    cards = []
+    for i, tile in enumerate(tiles):
+        tone = tile.get("tone") or "neutral"
+        delta = tile.get("delta")
+        delta_html = (
+            f'<div class="rl-kpi-delta rl-kpi-delta-{escape(tone)}">{escape(delta)}</div>'
+            if delta else ""
+        )
+        cards.append(
+            f"""<div class="rl-kpi rl-rise" style="--d:{i}" title="{escape(tile.get('hint') or '', quote=True)}">
+              <div class="rl-kpi-label">{escape(tile['label'])}</div>
+              <div class="rl-kpi-value">{escape(tile['value'])}</div>
+              {delta_html}
+            </div>"""
+        )
+    st.markdown(f'<div class="rl-kpi-row">{"".join(cards)}</div>', unsafe_allow_html=True)
+
+
+def banner(role: str, title: str, lines: list[str]) -> None:
+    color = COLORS.get(role, COLORS["warning"])
+    body = "".join(f'<div class="rl-banner-line">{line}</div>' for line in lines)
+    st.markdown(
+        f"""<div class="rl-banner rl-rise" style="--tone:{escape(color, quote=True)}">
+          <div class="rl-banner-title">{escape(title)}</div>
+          {body}
+        </div>""",
+        unsafe_allow_html=True,
+    )
+
+
+_CSS = f"""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0&display=swap');
+
+:root {{
+  --youkti-primary: #7650A1;
+  --youkti-secondary: #7270B2;
+  --youkti-tertiary: #81C1D3;
+  --youkti-primary-hover: color-mix(in oklab, #7650A1 82%, black);
+  --rl-ink: #252525;
+  --rl-secondary: #52525b;
+  --rl-muted: #6b7280;
+  --rl-line: #e5e7eb;
+  --rl-axis: {COLORS['axis']};
+  --rl-band: {COLORS['band']};
+  --rl-paper: #ffffff;
+  --rl-card: #ffffff;
+  --rl-navy: var(--youkti-primary);
+  --rl-blue: var(--youkti-secondary);
+  --rl-good: {COLORS['good']};
+  --rl-warn: {COLORS['warning']};
+  --rl-serious: {COLORS['serious']};
+  --rl-crit: {COLORS['critical']};
+  --rl-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --rl-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --rl-shadow-hover: 0 1px 3px 0 rgb(0 0 0 / 0.08);
+  --radius: 0.625rem;
+}}
+
+html, body, [data-testid="stAppViewContainer"], .stApp {{
+  background: var(--rl-paper) !important;
+  color: var(--rl-ink);
+}}
+
+h1, h2, h3, h4, p, label,
+.rl-masthead, .rl-step, .rl-identity, .rl-signal, .rl-kpi, .rl-banner,
+[data-testid="stMarkdownContainer"], [data-testid="stWidgetLabel"],
+[data-testid="stCaptionContainer"] {{
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}}
+
+/* Ligature icons — do not inherit the UI font. */
+[data-testid="stIconMaterial"],
+[data-testid="stIconMaterial"] *,
+[data-testid="stExpanderToggleIcon"],
+[data-testid="stExpanderToggleIcon"] * {{
+  font-family: "Material Symbols Rounded" !important;
+  font-weight: 400 !important;
+  font-style: normal !important;
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  font-feature-settings: "liga" !important;
+  letter-spacing: normal !important;
+  line-height: 1 !important;
+  text-transform: none !important;
+  white-space: nowrap !important;
+  speak: never;
+}}
+
+/* Hide Streamlit chrome — the page is the product. */
+[data-testid="stHeader"],
+[data-testid="stToolbar"],
+[data-testid="stDecoration"],
+[data-testid="stStatusWidget"],
+#MainMenu, footer, .stDeployButton {{
+  display: none !important;
+}}
+
+.stApp {{
+  background: #ffffff !important;
+}}
+
+/* Streamlit 1.63 pins centered layout at 736px (sizes.contentMaxWidth).
+   Wide mode only lifts that above ~864px, and markdown-scoped CSS cannot
+   reach this node. Kill the cap on every copy of the main column. */
+.stMain,
+[data-testid="stMain"],
+.stMainBlockContainer,
+.stMainBlockContainer.block-container,
+[data-testid="stMainBlockContainer"],
+.block-container,
+.e15ve43o4,
+section.main,
+section.main > div {{
+  max-width: none !important;
+  width: 100% !important;
+}}
+
+.stMainBlockContainer,
+[data-testid="stMainBlockContainer"],
+.block-container {{
+  padding-top: 1.5rem !important;
+  padding-bottom: 4.5rem !important;
+  padding-left: 2.25rem !important;
+  padding-right: 2.25rem !important;
+}}
+
+@media (min-width: 1600px) {{
+  .stMainBlockContainer,
+  [data-testid="stMainBlockContainer"],
+  .block-container {{
+    padding-left: 2.75rem !important;
+    padding-right: 2.75rem !important;
+  }}
+}}
+
+[data-testid="stHtml"] {{
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}}
+
+/* Home sidebar — pin to the top. Streamlit reserves header height and
+   vertically centers short nav; both leave the dead space above. */
+[data-testid="stSidebar"] {{
+  background: #fff !important;
+  border-right: 1px solid var(--rl-line) !important;
+  top: 0 !important;
+  height: 100vh !important;
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+}}
+[data-testid="stSidebar"] > div,
+[data-testid="stSidebar"] [data-testid="stSidebarContent"] {{
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+  height: 100% !important;
+  justify-content: flex-start !important;
+  align-items: stretch !important;
+  background: #fff !important;
+}}
+[data-testid="stSidebarHeader"] {{
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+}}
+[data-testid="stSidebarUserContent"] {{
+  padding: 1rem 0.75rem 1.5rem !important;
+  margin-top: 0 !important;
+  justify-content: flex-start !important;
+  align-items: stretch !important;
+}}
+[data-testid="stSidebarUserContent"] > div {{
+  align-items: stretch !important;
+}}
+[data-testid="stSidebarCollapseButton"],
+[data-testid="collapsedControl"] {{
+  display: none !important;
+}}
+
+[data-testid="stDialog"],
+[data-testid="stModal"] {{
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}}
+[data-testid="stDialog"] [role="dialog"],
+[data-testid="stModal"] [role="dialog"] {{
+  margin: auto !important;
+}}
+
+/* Entrance — skipped after the first paint via .rl-settled. */
+@keyframes rl-rise {{
+  from {{ opacity: 0; transform: translateY(12px); }}
+  to   {{ opacity: 1; transform: translateY(0); }}
+}}
+.rl-rise {{
+  animation: rl-rise 0.55s var(--rl-ease) both;
+  animation-delay: calc(var(--d, 0) * 55ms);
+}}
+
+/* Masthead */
+.rl-masthead {{
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin: 0 0 0.35rem;
+}}
+.rl-mark {{
+  display: none !important;
+}}
+.rl-kicker {{
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--rl-muted);
+  margin-bottom: 0.12rem;
+}}
+.rl-title {{
+  font-size: 1.72rem;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.15;
+  color: var(--rl-ink);
+  margin: 0;
+}}
+
+.rl-side-brand {{
+  margin: 0.15rem 0 1.1rem;
+}}
+.rl-side-title {{
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.25;
+  color: var(--rl-ink);
+  text-align: left;
+  margin: 0 0 1rem;
+}}
+
+/* Page heading — title then caption, no step number. */
+.rl-step {{
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0.15rem 0 0.85rem;
+}}
+.rl-step-title {{
+  font-size: 1.18rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin: 0;
+  color: var(--rl-ink);
+}}
+.rl-step-caption {{
+  margin: 0;
+  color: var(--rl-secondary);
+  font-size: 0.94rem;
+  line-height: 1.55;
+  max-width: 72ch;
+}}
+
+.rl-identity {{
+  margin: 0.15rem 0 0.85rem;
+}}
+.rl-identity-title {{
+  font-size: 1.28rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin: 0 0 0.25rem;
+}}
+.rl-identity-meta {{
+  margin: 0;
+  color: var(--rl-secondary);
+  font-size: 0.9rem;
+}}
+.rl-identity-meta strong {{
+  color: var(--rl-ink);
+  font-weight: 600;
+}}
+
+/* Status strip */
+.rl-signal-row {{
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0.15rem 0 0.4rem;
+}}
+.rl-signal {{
+  background: var(--rl-card);
+  border: 1px solid var(--rl-line);
+  border-radius: 12px;
+  padding: 0.7rem 0.75rem 0.72rem;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.28s var(--rl-ease), box-shadow 0.28s ease, border-color 0.28s ease;
+  box-shadow: var(--rl-shadow);
+}}
+.rl-signal::before {{
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--sig);
+}}
+.rl-signal:hover {{
+  transform: translateY(-2px);
+  box-shadow: var(--rl-shadow-hover);
+  border-color: var(--rl-axis);
+}}
+.rl-signal-label {{
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rl-muted);
+  margin-bottom: 0.28rem;
+}}
+.rl-signal-value {{
+  font-size: 0.92rem;
+  font-weight: 650;
+  color: var(--sig);
+  letter-spacing: -0.015em;
+  display: flex;
+  align-items: center;
+  gap: 0.28rem;
+}}
+.rl-signal-icon {{
+  font-size: 0.78rem;
+}}
+
+/* KPI tiles */
+.rl-kpi-row {{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin: 0.15rem 0 0.55rem;
+}}
+.rl-kpi {{
+  background: var(--rl-card);
+  border: 1px solid var(--rl-line);
+  border-radius: 14px;
+  padding: 0.95rem 1.05rem 1rem;
+  box-shadow: var(--rl-shadow);
+  transition: transform 0.3s var(--rl-ease), box-shadow 0.3s ease, border-color 0.3s ease;
+}}
+.rl-kpi:hover {{
+  transform: translateY(-3px);
+  box-shadow: var(--rl-shadow-hover);
+  border-color: var(--rl-axis);
+}}
+.rl-kpi-label {{
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--rl-muted);
+}}
+.rl-kpi-value {{
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.2;
+  margin: 0.28rem 0 0.18rem;
+  color: var(--rl-ink);
+}}
+.rl-kpi-delta {{
+  font-size: 0.8rem;
+  font-weight: 600;
+}}
+.rl-kpi-delta-good {{ color: var(--rl-good); }}
+.rl-kpi-delta-bad {{ color: var(--rl-crit); }}
+.rl-kpi-delta-neutral {{ color: var(--rl-secondary); }}
+
+/* Verdict / decision banners */
+.rl-banner {{
+  border-left: 4px solid var(--tone);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--tone) 10%, var(--rl-card)), var(--rl-card));
+  border: 1px solid var(--rl-line);
+  border-left-width: 4px;
+  border-left-color: var(--tone);
+  border-radius: 14px;
+  padding: 1rem 1.15rem 1.05rem;
+  margin: 0.2rem 0 0.95rem;
+  box-shadow: var(--rl-shadow);
+}}
+.rl-banner-title {{
+  font-size: 1.28rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--tone);
+}}
+.rl-banner-line {{
+  font-size: 0.92rem;
+  color: var(--rl-secondary);
+  margin-top: 0.28rem;
+}}
+.rl-banner-line strong {{
+  color: var(--rl-ink);
+}}
+
+.rl-chip-row {{
+  margin: -0.15rem 0 0.85rem;
+}}
+.rl-chip-kicker {{
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rl-muted);
+  margin-bottom: 0.4rem;
+}}
+.rl-chip {{
+  display: inline-block;
+  padding: 0.2rem 0.65rem;
+  margin: 0 0.35rem 0.35rem 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--rl-crit) 12%, var(--rl-card));
+  color: var(--rl-crit);
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}}
+
+/* AppTab — vertical list, icon + label inline, left rule when active. */
+[class*="st-key-dashview-"] {{
+  margin-bottom: 0.15rem;
+}}
+[class*="st-key-dashview-"] button {{
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0.5rem !important;
+  min-height: auto !important;
+  width: 100% !important;
+  padding: 0.55rem 0.85rem !important;
+  border: none !important;
+  border-left: 2px solid transparent !important;
+  border-radius: 0 0.375rem 0.375rem 0 !important;
+  background: transparent !important;
+  color: #6b7280 !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  line-height: 1.25 !important;
+  white-space: nowrap !important;
+  box-shadow: none !important;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease !important;
+}}
+[class*="st-key-dashview-"] button:hover {{
+  transform: none !important;
+  color: #1f2937 !important;
+  background: color-mix(in oklab, var(--youkti-primary) 6%, white) !important;
+  box-shadow: none !important;
+}}
+[class*="st-key-dashview-"] button[kind="primary"],
+[class*="st-key-dashview-"] [data-testid="stBaseButton-primary"] {{
+  background: color-mix(in oklab, var(--youkti-primary) 10%, white) !important;
+  border-left-color: var(--youkti-primary) !important;
+  color: var(--youkti-primary) !important;
+}}
+[class*="st-key-dashview-"] button [data-testid="stIconMaterial"] {{
+  font-size: 1rem !important;
+  width: 1rem !important;
+  height: 1rem !important;
+  color: inherit !important;
+}}
+
+/* Streamlit widgets */
+hr, [data-testid="stDivider"] {{
+  border-color: var(--rl-line) !important;
+  margin: 1.35rem 0 !important;
+}}
+
+[data-testid="stVerticalBlockBorderWrapper"] {{
+  background: var(--rl-card);
+  border-color: var(--rl-line) !important;
+  border-radius: 14px !important;
+  box-shadow: var(--rl-shadow);
+  transition: box-shadow 0.28s ease, transform 0.28s var(--rl-ease);
+}}
+[data-testid="stVerticalBlockBorderWrapper"]:hover {{
+  box-shadow: var(--rl-shadow-hover);
+}}
+
+.stButton > button,
+[data-testid="stBaseButton-secondary"],
+[data-testid="stBaseButton-primary"] {{
+  border-radius: 0.375rem !important;
+  font-weight: 500 !important;
+  font-size: 0.875rem !important;
+  letter-spacing: 0 !important;
+  min-height: 2.25rem !important;
+  box-shadow: var(--rl-shadow) !important;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
+  transform: none !important;
+}}
+.stButton > button:hover,
+[data-testid="stBaseButton-secondary"]:hover,
+[data-testid="stBaseButton-primary"]:hover {{
+  transform: none !important;
+}}
+[data-testid="stBaseButton-primary"],
+.stButton > button[kind="primary"] {{
+  background: var(--youkti-primary) !important;
+  border-color: var(--youkti-primary) !important;
+  color: #fff !important;
+}}
+[data-testid="stBaseButton-primary"]:hover,
+.stButton > button[kind="primary"]:hover {{
+  background: var(--youkti-primary-hover) !important;
+  border-color: var(--youkti-primary-hover) !important;
+}}
+
+/* Beat the generic button box so every view tab stays a flat list item. */
+[class*="st-key-dashview-"] .stButton > button,
+[class*="st-key-dashview-"] [data-testid="stBaseButton-secondary"],
+[class*="st-key-dashview-"] [data-testid="stBaseButton-primary"],
+[class*="st-key-dashview-"] button {{
+  min-height: auto !important;
+  border: none !important;
+  border-left: 2px solid transparent !important;
+  border-radius: 0 0.375rem 0.375rem 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #6b7280 !important;
+}}
+[class*="st-key-dashview-"] button:hover,
+[class*="st-key-dashview-"] [data-testid="stBaseButton-secondary"]:hover,
+[class*="st-key-dashview-"] [data-testid="stBaseButton-primary"]:hover,
+[class*="st-key-dashview-"] button[kind="primary"]:hover {{
+  background: color-mix(in oklab, var(--youkti-primary) 8%, white) !important;
+  border-color: transparent !important;
+  border-left-color: var(--youkti-primary) !important;
+  color: var(--youkti-primary) !important;
+  box-shadow: none !important;
+}}
+[class*="st-key-dashview-"] button[kind="primary"],
+[class*="st-key-dashview-"] [data-testid="stBaseButton-primary"] {{
+  background: color-mix(in oklab, var(--youkti-primary) 10%, white) !important;
+  border-left-color: var(--youkti-primary) !important;
+  color: var(--youkti-primary) !important;
+}}
+
+[class*="st-key-navpage-"] {{
+  margin-bottom: 0.2rem;
+}}
+[class*="st-key-navpage-"] .stButton > button,
+[class*="st-key-navpage-"] [data-testid="stBaseButton-secondary"],
+[class*="st-key-navpage-"] [data-testid="stBaseButton-primary"],
+[class*="st-key-navpage-"] button {{
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0.7rem !important;
+  min-height: auto !important;
+  width: 100% !important;
+  padding: 0.55rem 0.55rem !important;
+  border: none !important;
+  border-radius: 0.5rem !important;
+  background: transparent !important;
+  color: #6b7280 !important;
+  font-size: 0.95rem !important;
+  font-weight: 650 !important;
+  letter-spacing: 0 !important;
+  line-height: 1.3 !important;
+  white-space: nowrap !important;
+  text-align: left !important;
+  box-shadow: none !important;
+}}
+[class*="st-key-navpage-"] button::before {{
+  flex: 0 0 1.5rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: var(--youkti-primary);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5rem;
+  text-align: center;
+  box-shadow: var(--rl-shadow);
+}}
+[class*="st-key-navpage-data"] button::before {{ content: "1"; }}
+[class*="st-key-navpage-verdict"] button::before {{ content: "2"; }}
+[class*="st-key-navpage-score"] button::before {{ content: "3"; }}
+[class*="st-key-navpage-compare"] button::before {{ content: "4"; }}
+[class*="st-key-navpage-"] button [data-testid="stIconMaterial"] {{
+  display: none !important;
+}}
+[class*="st-key-navpage-"] button p,
+[class*="st-key-navpage-"] button span,
+[class*="st-key-navpage-"] button > div {{
+  justify-content: flex-start !important;
+  text-align: left !important;
+  margin-left: 0 !important;
+  margin-right: auto !important;
+}}
+[class*="st-key-navpage-"] button:hover,
+[class*="st-key-navpage-"] [data-testid="stBaseButton-secondary"]:hover {{
+  transform: none !important;
+  background: color-mix(in oklab, var(--youkti-primary) 8%, white) !important;
+  background-color: color-mix(in oklab, var(--youkti-primary) 8%, white) !important;
+  color: #1f2937 !important;
+  box-shadow: none !important;
+}}
+[data-testid="stSidebar"] [class*="st-key-navpage-"] button[kind="primary"],
+[data-testid="stSidebar"] [class*="st-key-navpage-"] button[kind="primary"]:hover,
+[data-testid="stSidebar"] [class*="st-key-navpage-"] [data-testid="stBaseButton-primary"],
+[data-testid="stSidebar"] [class*="st-key-navpage-"] [data-testid="stBaseButton-primary"]:hover,
+[data-testid="stSidebar"] [class*="st-key-navpage-"] .stButton > button[kind="primary"],
+[data-testid="stSidebar"] [class*="st-key-navpage-"] .stButton > button[kind="primary"]:hover {{
+  background: color-mix(in oklab, var(--youkti-primary) 10%, white) !important;
+  background-color: color-mix(in oklab, var(--youkti-primary) 10%, white) !important;
+  border-color: transparent !important;
+  color: var(--youkti-primary) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}}
+[data-testid="stSidebar"] [class*="st-key-navpage-"] button[kind="primary"] *,
+[data-testid="stSidebar"] [class*="st-key-navpage-"] [data-testid="stBaseButton-primary"] * {{
+  color: var(--youkti-primary) !important;
+}}
+[data-testid="stSidebar"] [class*="st-key-navpage-"] button[kind="primary"]::before,
+[data-testid="stSidebar"] [class*="st-key-navpage-"] [data-testid="stBaseButton-primary"]::before {{
+  background: var(--youkti-primary);
+  color: #fff;
+}}
+[class*="st-key-sidebar-source"] .stButton > button,
+[class*="st-key-sidebar-source"] button {{
+  justify-content: flex-start !important;
+  min-height: auto !important;
+  padding: 0.55rem 0.8rem !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--rl-muted) !important;
+  font-weight: 600 !important;
+}}
+[class*="st-key-sidebar-source"] button:hover {{
+  background: color-mix(in oklab, var(--youkti-primary) 6%, white) !important;
+  color: #1f2937 !important;
+  box-shadow: none !important;
+  transform: none !important;
+}}
+
+/* One border on the field — not on the wrapper as well. */
+[data-testid="stSelectbox"] > div,
+[data-testid="stMultiSelect"] > div {{
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}}
+[data-testid="stSelectbox"] [data-baseweb="select"] > div,
+[data-testid="stMultiSelect"] [data-baseweb="select"] > div {{
+  min-height: 2.5rem !important;
+  border: 1px solid var(--rl-line) !important;
+  border-radius: 0.375rem !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  outline: none !important;
+  cursor: pointer !important;
+  padding-left: 0.75rem !important;
+  padding-right: 0.5rem !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}}
+[data-testid="stSelectbox"] *:focus,
+[data-testid="stSelectbox"] *:focus-visible,
+[data-testid="stMultiSelect"] *:focus,
+[data-testid="stMultiSelect"] *:focus-visible {{
+  outline: none !important;
+}}
+[data-testid="stSelectbox"]:hover [data-baseweb="select"] > div,
+[data-testid="stMultiSelect"]:hover [data-baseweb="select"] > div {{
+  border-color: var(--youkti-primary) !important;
+}}
+[data-testid="stSelectbox"]:focus-within [data-baseweb="select"] > div,
+[data-testid="stMultiSelect"]:focus-within [data-baseweb="select"] > div {{
+  border-color: var(--youkti-primary) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--youkti-primary) 28%, transparent) !important;
+}}
+
+.stTabs [data-baseweb="tab-list"] {{
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--rl-line);
+  background: transparent;
+}}
+.stTabs [data-baseweb="tab"] {{
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #6b7280;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent !important;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}}
+.stTabs [data-baseweb="tab"]:hover {{
+  color: #1f2937;
+  background: transparent !important;
+}}
+.stTabs [aria-selected="true"] {{
+  color: var(--youkti-primary) !important;
+  border-bottom-color: var(--youkti-primary) !important;
+  box-shadow: none !important;
+}}
+
+[data-testid="stExpander"] {{
+  background: var(--rl-card);
+  border: 1px solid var(--rl-line) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--rl-shadow);
+  transition: box-shadow 0.25s ease;
+}}
+[data-testid="stExpander"]:hover {{
+  box-shadow: var(--rl-shadow-hover);
+}}
+
+[data-testid="stAlert"] {{
+  border-radius: 12px !important;
+  border: 1px solid var(--rl-line) !important;
+  box-shadow: var(--rl-shadow);
+}}
+
+@keyframes yk-chart-in {{
+  from {{ opacity: 0; transform: translateY(8px); }}
+  to   {{ opacity: 1; transform: translateY(0); }}
+}}
+@keyframes yk-reveal-x {{
+  from {{ clip-path: inset(0 100% 0 0); }}
+  to   {{ clip-path: inset(0 0 0 0); }}
+}}
+@keyframes yk-mark-in {{
+  from {{ opacity: 0; transform: translateY(6px); }}
+  to   {{ opacity: 1; transform: translateY(0); }}
+}}
+
+[data-testid="stVegaLiteChart"],
+[data-testid="stArrowVegaLiteChart"] {{
+  background: var(--rl-card);
+  border: 1px solid var(--rl-line);
+  border-radius: 14px;
+  padding: 0.7rem 0.55rem 0.15rem;
+  box-shadow: var(--rl-shadow);
+  animation: yk-chart-in 0.22s var(--rl-ease) both;
+}}
+[data-testid="stVegaLiteChart"] .mark-line path,
+[data-testid="stArrowVegaLiteChart"] .mark-line path,
+[data-testid="stVegaLiteChart"] .mark-area path,
+[data-testid="stArrowVegaLiteChart"] .mark-area path {{
+  animation: yk-reveal-x 0.4s var(--rl-ease) both;
+}}
+[data-testid="stVegaLiteChart"] .mark-symbol path,
+[data-testid="stVegaLiteChart"] .mark-point path,
+[data-testid="stVegaLiteChart"] .mark-rect path,
+[data-testid="stVegaLiteChart"] .mark-bar path,
+[data-testid="stArrowVegaLiteChart"] .mark-symbol path,
+[data-testid="stArrowVegaLiteChart"] .mark-point path,
+[data-testid="stArrowVegaLiteChart"] .mark-rect path,
+[data-testid="stArrowVegaLiteChart"] .mark-bar path {{
+  animation: yk-mark-in 0.28s var(--rl-ease) both;
+}}
+[data-testid="stVegaLiteChart"] .role-axis,
+[data-testid="stVegaLiteChart"] .role-legend,
+[data-testid="stVegaLiteChart"] .role-grid,
+[data-testid="stArrowVegaLiteChart"] .role-axis,
+[data-testid="stArrowVegaLiteChart"] .role-legend,
+[data-testid="stArrowVegaLiteChart"] .role-grid {{
+  animation: none !important;
+}}
+
+[data-testid="stDataFrame"] {{
+  border-radius: 12px !important;
+  overflow: hidden;
+  border: 1px solid var(--rl-line);
+  box-shadow: var(--rl-shadow);
+}}
+
+[data-testid="stPopover"] button {{
+  border-radius: 11px !important;
+}}
+
+/* Radio pills */
+[data-testid="stRadio"] [role="radiogroup"] {{
+  gap: 0.35rem;
+}}
+[data-testid="stRadio"] label {{
+  transition: transform 0.2s var(--rl-ease);
+}}
+[data-testid="stRadio"] label:hover {{
+  transform: translateY(-1px);
+}}
+
+/* Spinner */
+[data-testid="stSpinner"] {{
+  letter-spacing: -0.01em;
+}}
+
+/* Caption + markdown polish */
+[data-testid="stCaptionContainer"] {{
+  color: var(--rl-secondary) !important;
+}}
+
+::selection {{
+  background: color-mix(in srgb, var(--rl-blue) 28%, transparent);
+}}
+
+/* Scrollbar */
+::-webkit-scrollbar {{ width: 10px; height: 10px; }}
+::-webkit-scrollbar-track {{ background: transparent; }}
+::-webkit-scrollbar-thumb {{
+  background: var(--rl-axis);
+  border-radius: 999px;
+  border: 2px solid var(--rl-paper);
+}}
+
+@media (max-width: 1100px) {{
+  .rl-signal-row {{ grid-template-columns: repeat(3, minmax(0, 1fr)); }}
+}}
+@media (max-width: 720px) {{
+  .rl-signal-row, .rl-kpi-row {{ grid-template-columns: 1fr 1fr; }}
+  .rl-title {{ font-size: 1.38rem; }}
+}}
+
+@media (prefers-reduced-motion: reduce) {{
+  *, *::before, *::after {{
+    animation: none !important;
+    transition: none !important;
+  }}
+}}
+</style>
+"""

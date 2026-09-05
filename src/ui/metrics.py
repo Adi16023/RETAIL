@@ -18,13 +18,14 @@ import streamlit as st
 
 from pipeline.changepoint import RECENT_MONTHS, full_month_index
 from pipeline.monthly import monthly_table
+from .cache import dataframe_identity
 
 
 # Cached because every widget interaction re-runs the whole Streamlit script.
 # These reshape thousands of rows and depend only on (data, account), never on
 # the widget that changed — recomputing them per keystroke is what makes a
 # dashboard feel sluggish.
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, hash_funcs={pd.DataFrame: dataframe_identity})
 def monthly_frame(df: pd.DataFrame, account_id: str) -> pd.DataFrame:
     """One row per calendar month of this account's history.
 
@@ -60,7 +61,7 @@ def tier_long(frame: pd.DataFrame) -> pd.DataFrame:
     return long
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, hash_funcs={pd.DataFrame: dataframe_identity})
 def category_comparison(df: pd.DataFrame, account_id: str) -> pd.DataFrame:
     """Average monthly revenue per category, baseline window vs recent window.
 

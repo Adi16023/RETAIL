@@ -13,6 +13,8 @@ waiting on a model to look at a chart.
 
 from __future__ import annotations
 
+from html import escape
+
 import altair as alt
 import pandas as pd
 import streamlit as st
@@ -28,7 +30,8 @@ from .charts import (
     tier_mix_chart,
 )
 from .metrics import category_comparison, headline_metrics, monthly_frame, tier_long
-from .palette import active, status_style
+from .palette import STATUS_MEANING, active, status_style
+from . import theme
 from .verdict import noise_verdict
 
 # Status-strip key -> the significance test that speaks to it.
@@ -36,6 +39,47 @@ SIGNIFICANCE_KEY = {
     "revenue_decline": "revenue", "margin": "margin", "discount": "discount",
     "tier_mix": "tier_mix", "order_pattern": "order_frequency",
 }
+
+# Same six views as the original tabs, with icons instead of a tab bar.
+# `pack_keys` are the detector blocks that make this the view worth opening first.
+VIEWS = [
+    {
+        "key": "trend",
+        "icon": ":material/show_chart:",
+        "label": "Trend",
+        "pack_keys": ("revenue_decline", "margin"),
+    },
+    {
+        "key": "mix",
+        "icon": ":material/category:",
+        "label": "Value mix",
+        "pack_keys": ("tier_mix",),
+    },
+    {
+        "key": "pricing",
+        "icon": ":material/sell:",
+        "label": "Pricing",
+        "pack_keys": ("discount",),
+    },
+    {
+        "key": "orders",
+        "icon": ":material/shopping_bag:",
+        "label": "Order pattern",
+        "pack_keys": ("order_pattern",),
+    },
+    {
+        "key": "quality",
+        "icon": ":material/verified:",
+        "label": "Data quality",
+        "pack_keys": (),
+    },
+    {
+        "key": "table",
+        "icon": ":material/table_rows:",
+        "label": "Monthly data",
+        "pack_keys": (),
+    },
+]
 
 # Dimension -> (evidence-pack key, label, one-line explanation of what it means).
 SIGNAL_ROW = [
@@ -45,6 +89,51 @@ SIGNAL_ROW = [
     ("tier_mix", "Value mix", "Is spend moving between premium and cheap lines?"),
     ("order_pattern", "Order shape", "More orders, smaller baskets — multi-sourcing?"),
 ]
+
+
+def _is_concern(status: str | None) -> bool:
+    role, _, _ = STATUS_MEANING.get(status or "", ("warning", "", ""))
+    return role in ("critical", "serious")
+
+
+def _default_view(pack: dict) -> str:
+    """Open on the first view that is actually moving — not always Trend."""
+    if any(c.get("defected") for c in pack.get("category_changes") or []):
+        return "mix"
+    for view in VIEWS:
+        for pack_key in view["pack_keys"]:
+            status = (pack.get(pack_key) or {}).get("status")
+            if _is_concern(status):
+                return view["key"]
+    sufficiency = (pack.get("data_sufficiency") or {}).get("label")
+    if sufficiency == "insufficient":
+        return "quality"
+    return "trend"
+
+
+def _set_dash_view(state_key: str, view_key: str) -> None:
+    """Runs before the fragment rerenders, so the highlight moves on the first click."""
+    st.session_state[state_key] = view_key
+
+
+def _render_view_picker(pack: dict, account_id: str) -> str:
+    """AppTab-style vertical list. Returns the selected view key."""
+    state_key = f"dash_view_{account_id}"
+    if state_key not in st.session_state:
+        st.session_state[state_key] = _default_view(pack)
+    current = st.session_state[state_key]
+
+    for view in VIEWS:
+        st.button(
+            view["label"],
+            icon=view["icon"],
+            key=f"dashview-{account_id}-{view['key']}",
+            type="primary" if current == view["key"] else "secondary",
+            use_container_width=True,
+            on_click=_set_dash_view,
+            args=(state_key, view["key"]),
+        )
+    return current
 
 
 def _format_value(value, kind: str) -> str:
@@ -68,8 +157,8 @@ def _render_status_strip(pack: dict, colors: dict) -> None:
     }
 
     significance = pack.get("significance") or {}
-    columns = st.columns(len(SIGNAL_ROW) + 1)
-    for column, (key, label, explanation) in zip(columns, SIGNAL_ROW):
+    items = []
+    for key, label, explanation in SIGNAL_ROW:
         block = pack.get(key)
         status = "unavailable" if not availability.get(key, True) or block is None else block.get("status")
         color, icon, text = status_style(status, colors)
@@ -77,42 +166,41 @@ def _render_status_strip(pack: dict, colors: dict) -> None:
         # threshold" from "over the threshold AND bigger than this account's
         # usual wobble" without leaving the strip.
         noise = noise_verdict(significance.get(SIGNIFICANCE_KEY.get(key)))
+        hint = explanation
         if noise != "—":
-            explanation = f"{explanation}\n\nReal, or noise? {noise}."
-        column.markdown(
-            f"<div style='line-height:1.35'>"
-            f"<div style='font-size:0.72rem;color:{colors['muted']};text-transform:uppercase;"
-            f"letter-spacing:.04em'>{label}</div>"
-            f"<div style='font-size:0.95rem;font-weight:600;color:{color}'>{icon} {text}</div>"
-            f"</div>",
-            unsafe_allow_html=True,
-            help=explanation,
-        )
+            hint = f"{explanation} Real, or noise? {noise}."
+        items.append({"label": label, "color": color, "icon": icon, "text": text, "hint": hint})
 
     defected = [c["category"] for c in pack["category_changes"] if c["defected"]]
     color, icon, text = status_style("critical" if defected else "stable", colors)
     if defected:
         color, icon, text = colors["critical"], "▼", "Line lost"
-    columns[-1].markdown(
-        f"<div style='line-height:1.35'>"
-        f"<div style='font-size:0.72rem;color:{colors['muted']};text-transform:uppercase;"
-        f"letter-spacing:.04em'>Categories</div>"
-        f"<div style='font-size:0.95rem;font-weight:600;color:{color}'>{icon} {text}</div>"
-        f"</div>",
-        unsafe_allow_html=True,
-        help="Has a product line stopped completely and stayed stopped?",
-    )
+    items.append({
+        "label": "Categories",
+        "color": color,
+        "icon": icon,
+        "text": text,
+        "hint": "Has a product line stopped completely and stayed stopped?",
+    })
+    theme.status_strip(items)
     if defected:
         st.caption(f"Stopped completely: **{', '.join(defected)}**")
+
+
+def _kpi_tone(difference: float, good_direction: str) -> str:
+    if good_direction == "neutral" or difference == 0:
+        return "neutral"
+    improved = difference > 0 if good_direction == "up" else difference < 0
+    return "good" if improved else "bad"
 
 
 def _render_kpi_tiles(pack: dict, frame: pd.DataFrame) -> None:
     tiles = headline_metrics(pack, frame)
     for row_start in (0, 3):
-        columns = st.columns(3)
-        for column, tile in zip(columns, tiles[row_start:row_start + 3]):
+        cards = []
+        for tile in tiles[row_start:row_start + 3]:
             baseline, recent = tile["baseline"], tile["recent"]
-            delta, delta_color = None, "off"
+            delta, tone = None, "neutral"
             if baseline is not None and recent is not None:
                 difference = recent - baseline
                 if tile["format"] == "percent":
@@ -121,19 +209,17 @@ def _render_kpi_tiles(pack: dict, frame: pd.DataFrame) -> None:
                     delta = f"{difference:+,.0f} vs baseline"
                 else:
                     delta = f"{difference:+,.2f} vs baseline"
-                # Streamlit's default paints "up" green. For discount, up is
-                # bad — so the direction is set per metric rather than assumed.
-                if tile["good_direction"] == "up":
-                    delta_color = "normal"
-                elif tile["good_direction"] == "down":
-                    delta_color = "inverse"
-            column.metric(
-                tile["label"],
-                _format_value(recent, tile["format"]),
-                delta,
-                delta_color=delta_color,
-                help=f"Baseline: {_format_value(baseline, tile['format'])}",
-            )
+                # Green is good in that metric's own direction — for discount,
+                # up is bad, so the tone is set per metric rather than assumed.
+                tone = _kpi_tone(difference, tile["good_direction"])
+            cards.append({
+                "label": tile["label"],
+                "value": _format_value(recent, tile["format"]),
+                "delta": delta,
+                "tone": tone,
+                "hint": f"Baseline: {_format_value(baseline, tile['format'])}",
+            })
+        theme.kpi_row(cards)
 
 
 def _render_trend_tab(pack: dict, frame: pd.DataFrame, colors: dict) -> None:
@@ -379,22 +465,24 @@ def render_account_dashboard(df: pd.DataFrame, account_id: str,
         pack = build_evidence_pack(df, account_id)
     frame = monthly_frame(df, account_id)
 
-    identity = [account_id]
+    identity_bits = [account_id]
     if pack.get("account_name"):
-        identity.append(str(pack["account_name"]))
-    st.subheader(" · ".join(identity))
+        identity_bits.append(str(pack["account_name"]))
 
     context = []
     if pack.get("region"):
-        context.append(f"Region: **{pack['region']}**")
+        context.append(f"Region: <strong>{escape(str(pack['region']))}</strong>")
     manager = pack.get("account_manager")
     if manager:
-        context.append("Manager: **" + (", ".join(manager) if isinstance(manager, list) else manager) + "**")
+        manager_text = ", ".join(manager) if isinstance(manager, list) else manager
+        context.append(f"Manager: <strong>{escape(str(manager_text))}</strong>")
     history = pack.get("history") or {}
-    context.append(f"History: **{history.get('months_of_history')} months** "
-                   f"({history.get('start_date')} → {history.get('end_date')})")
-    context.append(f"Orders: **{history.get('order_count')}**")
-    st.caption("  ·  ".join(context))
+    context.append(
+        f"History: <strong>{escape(str(history.get('months_of_history')))} months</strong> "
+        f"({escape(str(history.get('start_date')))} → {escape(str(history.get('end_date')))})"
+    )
+    context.append(f"Orders: <strong>{escape(str(history.get('order_count')))}</strong>")
+    theme.identity(" · ".join(identity_bits), "  ·  ".join(context))
 
     _render_status_strip(pack, colors)
     st.divider()
@@ -404,21 +492,29 @@ def render_account_dashboard(df: pd.DataFrame, account_id: str,
         "Green is good in that metric's own direction — for discount, down is good."
     )
     st.divider()
-
-    trend, mix, pricing, orders, quality, table = st.tabs(
-        ["Trend", "Value mix", "Pricing", "Order pattern", "Data quality", "Monthly data"]
-    )
-    with trend:
-        _render_trend_tab(pack, frame, colors)
-    with mix:
-        _render_mix_tab(pack, df, account_id, frame, colors)
-    with pricing:
-        _render_pricing_tab(pack, frame, colors)
-    with orders:
-        _render_orders_tab(pack, frame, colors)
-    with quality:
-        _render_quality_tab(pack, frame)
-    with table:
-        _render_table_tab(frame)
+    _render_chart_views(df, account_id, pack, frame, colors)
 
     return pack
+
+
+@st.fragment
+def _render_chart_views(df: pd.DataFrame, account_id: str, pack: dict,
+                        frame: pd.DataFrame, colors: dict) -> None:
+    """Only this block reruns when a view is clicked. Tabs sit on the left;
+    the chart on the right fades in on each switch."""
+    nav, panel = st.columns([1, 4], gap="large")
+    with nav:
+        view = _render_view_picker(pack, account_id)
+    with panel:
+        if view == "trend":
+            _render_trend_tab(pack, frame, colors)
+        elif view == "mix":
+            _render_mix_tab(pack, df, account_id, frame, colors)
+        elif view == "pricing":
+            _render_pricing_tab(pack, frame, colors)
+        elif view == "orders":
+            _render_orders_tab(pack, frame, colors)
+        elif view == "quality":
+            _render_quality_tab(pack, frame)
+        else:
+            _render_table_tab(frame)

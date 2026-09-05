@@ -19,6 +19,8 @@ chose which of them to cite; it never produced one.
 
 from __future__ import annotations
 
+from html import escape
+
 import altair as alt
 import pandas as pd
 import streamlit as st
@@ -26,6 +28,7 @@ import streamlit as st
 from pipeline.timeline import PRESENCE_ONLY_DIMENSIONS, READS_AS_ORDER
 
 from .palette import active
+from . import theme
 
 VERDICT_PRESENTATION = {
     "leakage_detected": ("critical", "🔴", "Leakage detected"),
@@ -77,29 +80,24 @@ def _banner(report: dict, colors: dict) -> None:
         subtitle.append(shape.capitalize())
     subtitle.append(f"{report['confidence'].capitalize()} confidence")
 
-    st.markdown(
-        f"""<div style="border-left:5px solid {colors[role]};background:{colors['band']}55;
-        padding:0.85rem 1.1rem;border-radius:6px;margin-bottom:0.9rem">
-        <div style="font-size:1.28rem;font-weight:650;color:{colors[role]}">{icon} {label}</div>
-        <div style="font-size:0.92rem;color:{colors['text_secondary']};margin-top:0.2rem">
-        {' · '.join(subtitle)}</div>
-        <div style="font-size:0.92rem;margin-top:0.45rem;color:{colors['text_secondary']}">
-        Priority <strong style="color:{colors[priority_role]}">{priority}</strong>
-        — {priority_hint}</div></div>""",
-        unsafe_allow_html=True,
+    theme.banner(
+        role,
+        f"{icon} {label}",
+        [
+            escape(" · ".join(subtitle)),
+            f"Priority <strong style='color:{colors[priority_role]}'>{escape(str(priority))}</strong>"
+            f" — {escape(priority_hint)}",
+        ],
     )
 
     if report.get("leak_dimensions"):
         chips = "".join(
-            f"<span style='display:inline-block;padding:0.16rem 0.6rem;margin:0 0.35rem 0.35rem 0;"
-            f"border-radius:999px;background:{colors['critical']}1f;color:{colors['critical']};"
-            f"font-size:0.82rem;font-weight:600'>{DIMENSION_LABELS.get(d, d)}</span>"
+            f"<span class='rl-chip'>{escape(DIMENSION_LABELS.get(d, d))}</span>"
             for d in report["leak_dimensions"]
         )
         st.markdown(
-            f"<div style='margin:-0.3rem 0 0.6rem'><span style='font-size:0.78rem;"
-            f"color:{colors['muted']};text-transform:uppercase;letter-spacing:.04em'>"
-            f"Value is leaving through</span><br>{chips}</div>",
+            f"<div class='rl-chip-row rl-rise'><div class='rl-chip-kicker'>"
+            f"Value is leaving through</div>{chips}</div>",
             unsafe_allow_html=True,
         )
 

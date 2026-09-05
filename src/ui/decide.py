@@ -18,10 +18,13 @@ otherwise would be exactly the false confidence this project exists to avoid.
 
 from __future__ import annotations
 
+from html import escape
+
 import pandas as pd
 import streamlit as st
 
 from .palette import active
+from . import theme
 
 ACTION_LABELS = {
     "price_recovery": "Reset the price",
@@ -158,16 +161,14 @@ def render_decision(decision: dict, colors: dict) -> None:
     label = ACTION_LABELS.get(action, action.replace("_", " ").title())
     role = "good" if action in ("no_action", "expansion") else "serious"
 
-    st.markdown(
-        f"""<div style="border-left:5px solid {colors[role]};background:{colors['band']}55;
-        padding:0.8rem 1.05rem;border-radius:6px;margin:0.5rem 0 0.9rem">
-        <div style="font-size:0.76rem;color:{colors['muted']};text-transform:uppercase;
-        letter-spacing:.04em">{label}</div>
-        <div style="font-size:1.15rem;font-weight:650;margin-top:0.15rem">
-        {decision.get('headline', '')}</div>
-        <div style="font-size:0.9rem;color:{colors['text_secondary']};margin-top:0.35rem">
-        Target: {decision.get('recommended_option', '')}</div></div>""",
-        unsafe_allow_html=True,
+    theme.banner(
+        role,
+        decision.get("headline", "") or label,
+        [
+            f"<span style='letter-spacing:.08em;text-transform:uppercase;font-size:0.76rem;"
+            f"font-weight:650'>{escape(label)}</span>",
+            f"Target: {escape(str(decision.get('recommended_option', '')))}",
+        ],
     )
 
     if decision.get("expected_result"):

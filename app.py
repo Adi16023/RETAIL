@@ -1,11 +1,12 @@
 """
 Revenue Leakage Investigator — the demo surface.
 
-ONE screen, one account, three steps in the order a manager actually works:
+A home sidebar with four pages, one account at a time:
 
-  1. What this account has been doing        the deterministic evidence
-  2. Is anything actually going wrong?       the single LLM call, on demand
-  3. How much should you trust that verdict? scored against the Answer Key
+  Detect       the deterministic evidence
+  Investigate  the single LLM call, on demand
+  Attribute    scored against the Answer Key
+  Prioritise   several finished accounts, side by side
 
 Headings and captions are written for an account manager, not an engineer:
 they say what the section answers, not how it is computed. Where an
@@ -13,8 +14,8 @@ implementation detail earns its place ("every number it quotes comes from the
 analysis above"), it is there because it tells the reader how much to trust
 what they are looking at.
 
-The steps are strictly ordered because they build on each other: the evidence
-is what the agent reasons over, and the verdict is what the Answer Key scores.
+The pages still build on each other: the evidence is what the agent reasons
+over, and the verdict is what the Answer Key scores.
 
 The evidence costs nothing — clicking through eighteen accounts spends no money and
 waits on no model. The verdict is a paid API call, so its result is cached to disk
@@ -58,6 +59,7 @@ from ui.compare import render_comparison
 from ui.decide import render_decision, render_early_warning, render_no_lever, render_options
 from ui.palette import active
 from ui.dashboard import render_account_dashboard
+from ui import theme
 from ui.verdict import render_verdict
 from validation.answer_key import AnswerKeyUnavailable, load_answer_key, score_report
 
@@ -81,7 +83,74 @@ MODEL_CHOICES = {
     },
 }
 
-st.set_page_config(page_title="Revenue Leakage Investigator", layout="wide")
+st.set_page_config(
+    page_title="Revenue Leakage Investigator",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+theme.inject()
+
+# Same four pages as the old numbered steps. Sidebar labels are the pipeline
+# words; full titles and captions stay on the page itself.
+PAGES = [
+    {
+        "key": "data",
+        "icon": ":material/analytics:",
+        "number": 1,
+        "label": "Detect",
+        "title": "What this account has been doing",
+        "caption": (
+            "Every order this account has placed, rolled up month by month. The strip below is a "
+            "quick read across the six things that can quietly go wrong — how much they spend, what "
+            "it earns you, how hard you are discounting, what they buy, and how they order. A "
+            "problem usually shows up in one of these long before it shows up in the topline."
+        ),
+    },
+    {
+        "key": "verdict",
+        "icon": ":material/psychology:",
+        "number": 2,
+        "label": "Investigate",
+        "title": "Is anything actually going wrong?",
+        "caption": (
+            "An AI analyst reads exactly the figures on Detect and gives you a straight "
+            "call: real revenue leakage, a temporary dip, or nothing to worry about — and it will "
+            "say so plainly when the evidence is too thin to decide either way. Every number it "
+            "quotes comes from the analysis, so you can check its reasoning rather than take it on "
+            "trust."
+        ),
+    },
+    {
+        "key": "score",
+        "icon": ":material/fact_check:",
+        "number": 3,
+        "label": "Attribute",
+        "title": "How much should you trust that verdict?",
+        "caption": (
+            "For this demo set, the right answer for every account was written down in advance and "
+            "kept away from the agent. Comparing the two shows you how reliable the verdict is — "
+            "which is what tells you how much weight to give it on a real account, where nobody "
+            "knows the answer yet."
+        ),
+    },
+    {
+        "key": "compare",
+        "icon": ":material/compare_arrows:",
+        "number": 4,
+        "label": "Prioritise",
+        "title": "How do these accounts compare?",
+        "caption": (
+            "Read several accounts side by side and see which of them are living the same story — "
+            "who is being discounted harder, who is quietly trading down, who is simply growing. "
+            "It reuses the findings already computed for each account, so nothing new is measured "
+            "here; the AI only groups and explains them in business terms."
+        ),
+    },
+]
+
+
+def _set_home_page(page_key: str) -> None:
+    st.session_state["home_page"] = page_key
 
 
 # --- Live model access -----------------------------------------------------
@@ -419,6 +488,34 @@ def render_ingestion_report(report: dict) -> None:
         st.json(report)
 
 
+@st.dialog("How this file was read", width="large")
+def show_ingestion_modal(report: dict) -> None:
+    """Same report as before — a modal, not an expander that pushes the page."""
+    render_ingestion_report(report)
+
+
+@st.dialog("Data source", width="small")
+def show_data_source_modal() -> None:
+    """Pick a file without a popover hanging off the sidebar."""
+    current = st.session_state.get("upload_name")
+    if current:
+        st.caption(f"Using **{current}**. Drop a different file to replace it.")
+    else:
+        st.caption(
+            "Leave this empty to use the reference dataset — the official Quessathon "
+            "workbook, already extracted."
+        )
+    uploaded = st.file_uploader("Use your own transaction file", type=["csv", "xlsx"])
+    if uploaded is not None and st.session_state.get("upload_name") != uploaded.name:
+        st.session_state["upload_bytes"] = uploaded.getvalue()
+        st.session_state["upload_name"] = uploaded.name
+        st.rerun()
+    if current and st.button("Use the reference dataset instead", type="tertiary"):
+        st.session_state.pop("upload_bytes", None)
+        st.session_state.pop("upload_name", None)
+        st.rerun()
+
+
 # --- Data (cached: every widget interaction re-runs the whole script) ------
 #
 # Without these, toggling the model radio re-read the CSV, re-ran ingestion
@@ -442,7 +539,7 @@ def load_uploaded_data(file_bytes: bytes, filename: str):
     return ingest(buffer)
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, hash_funcs={pd.DataFrame: cache.dataframe_identity})
 def cached_evidence_pack(df: pd.DataFrame, account_id: str) -> dict:
     # The classifier's second opinion rides along in the pack: deterministic,
     # so it is computed once with the rest and shown both before and after
@@ -450,7 +547,21 @@ def cached_evidence_pack(df: pd.DataFrame, account_id: str) -> dict:
     return attach_model_opinion(build_evidence_pack(df, account_id))
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, hash_funcs={pd.DataFrame: cache.dataframe_identity})
+def cached_account_fingerprint(df: pd.DataFrame, account_id: str) -> str:
+    return cache.account_fingerprint(df, account_id)
+
+
+@st.cache_data(show_spinner=False, hash_funcs={pd.DataFrame: cache.dataframe_identity})
+def cached_account_index(df: pd.DataFrame) -> tuple[dict, list]:
+    names = (
+        df.drop_duplicates("account_id").set_index("account_id")["account_name"].to_dict()
+        if "account_name" in df.columns else {}
+    )
+    return names, sorted(df["account_id"].unique())
+
+
+@st.cache_data(show_spinner=False, hash_funcs={pd.DataFrame: cache.dataframe_identity})
 def cached_comparison_digest(df: pd.DataFrame, account_ids: tuple[str, ...]) -> dict:
     """What the comparison model is shown. Free — it only re-reads the
     deterministic stages — but it runs on every rerun of the page, so it is
@@ -458,29 +569,42 @@ def cached_comparison_digest(df: pd.DataFrame, account_ids: tuple[str, ...]) -> 
     return build_comparison_digest(df, list(account_ids))
 
 
-# --- Data ------------------------------------------------------------------
+# --- Home sidebar + data ---------------------------------------------------
 
-heading, chooser = st.columns([4, 1])
-with heading:
-    st.title("Revenue Leakage Investigator")
-    st.caption("Detect → Investigate → Attribute → Prioritise")
-with chooser:
-    st.write("")
-    # A popover, not a mode switch: choosing a data source used to replace the
-    # whole page with an uploader, which made one screen behave like two. The
-    # reference dataset is simply the default, and a file dropped here takes
-    # over in place.
-    with st.popover("Data source", width="stretch"):
-        uploaded_file = st.file_uploader("Use your own transaction file", type=["csv", "xlsx"])
-        st.caption(
-            "Leave this empty to use the reference dataset — the official Quessathon "
-            "workbook, already extracted."
+if "home_page" not in st.session_state:
+    st.session_state["home_page"] = "data"
+if "model_choice" not in st.session_state:
+    st.session_state["model_choice"] = next(iter(MODEL_CHOICES))
+
+with st.sidebar:
+    theme.sidebar_brand("Revenue Leakage Investigator")
+    current_page = st.session_state["home_page"]
+    for page in PAGES:
+        st.button(
+            page["label"],
+            key=f"navpage-{page['key']}",
+            type="primary" if current_page == page["key"] else "secondary",
+            use_container_width=True,
+            on_click=_set_home_page,
+            args=(page["key"],),
         )
+    st.divider()
+    open_data_source = st.button(
+        "Choose your data source", icon=":material/folder_open:", use_container_width=True,
+        key="sidebar-source",
+    )
 
-if uploaded_file is not None:
+# Opened from the main script, not inside the sidebar — otherwise Streamlit
+# parks the dialog over the left column instead of the centre of the page.
+if open_data_source:
+    show_data_source_modal()
+
+if "upload_bytes" in st.session_state:
     using_reference = False
     try:
-        df, ingestion_report = load_uploaded_data(uploaded_file.getvalue(), uploaded_file.name)
+        df, ingestion_report = load_uploaded_data(
+            st.session_state["upload_bytes"], st.session_state["upload_name"],
+        )
     except IngestionError as e:
         st.error(f"Could not process this file: {e}")
         st.stop()
@@ -497,82 +621,41 @@ else:
 
 # --- Account picker (the one control everything hangs off) -----------------
 
-names = (
-    df.drop_duplicates("account_id").set_index("account_id")["account_name"].to_dict()
-    if "account_name" in df.columns else {}
-)
-accounts = sorted(df["account_id"].unique())
+names, accounts = cached_account_index(df)
 
-picker, summary = st.columns([2, 3])
+# Dataset size line (accounts / orders / date range) sat beside the picker.
+# It restated what the file already is; hide it so the account field is the
+# only thing on this row.
+# label = "Reference dataset" if using_reference else f"Uploaded: {uploaded_file.name}"
+# st.caption(
+#     f"**{label}** — **{len(accounts)}** accounts · "
+#     f"**{ingestion_report['n_orders']:,}** orders · "
+#     f"**{ingestion_report['rows_total_raw']:,}** transaction lines · "
+#     f"{ingestion_report['date_range'][0]} → {ingestion_report['date_range'][1]}"
+# )
+
+picker, file_info = st.columns([3, 1], vertical_alignment="bottom", gap="medium")
 with picker:
     account_id = st.selectbox(
         "Account under investigation", accounts,
         format_func=lambda a: f"{a} — {names[a]}" if names.get(a) else a,
     )
-with summary:
-    st.write("")
-    label = "Reference dataset" if using_reference else f"Uploaded: {uploaded_file.name}"
-    st.caption(
-        f"**{label}** — **{len(accounts)}** accounts · "
-        f"**{ingestion_report['n_orders']:,}** orders · "
-        f"**{ingestion_report['rows_total_raw']:,}** transaction lines · "
-        f"{ingestion_report['date_range'][0]} → {ingestion_report['date_range'][1]}"
-    )
+with file_info:
+    if st.button("How this file was read", type="tertiary", icon=":material/info:"):
+        show_ingestion_modal(ingestion_report)
 
-# Directly under the account field: how this file was resolved. It sits here
-# rather than in a corner because on an unfamiliar file it is the first thing
-# worth checking — which columns were matched, which were derived, and which
-# dimensions the file therefore cannot support.
-with st.expander("How this file was read"):
-    render_ingestion_report(ingestion_report)
-
-st.divider()
-
-
-# --- 1. The evidence -------------------------------------------------------
-
-st.markdown("### 1 · What this account has been doing")
-st.caption(
-    "Every order this account has placed, rolled up month by month. The strip below is a "
-    "quick read across the six things that can quietly go wrong — how much they spend, what "
-    "it earns you, how hard you are discounting, what they buy, and how they order. A "
-    "problem usually shows up in one of these long before it shows up in the topline."
-)
-pack = render_account_dashboard(df, account_id, pack=cached_evidence_pack(df, account_id))
-
-st.divider()
-
-
-# --- 2. The AI verdict -----------------------------------------------------
-
-st.markdown("### 2 · Is anything actually going wrong?")
-st.caption(
-    "An AI analyst reads exactly the figures above and gives you a straight call: real "
-    "revenue leakage, a temporary dip, or nothing to worry about — and it will say so "
-    "plainly when the evidence is too thin to decide either way. Every number it quotes "
-    "comes from the analysis above, so you can check its reasoning rather than take it on "
-    "trust."
-)
-
-fingerprint = cache.account_fingerprint(df, account_id)
-
-# The control row keeps the SAME three columns and the SAME single button in
-# every state — only the button's enabled-ness and the status text change.
-# Swapping the button's label and type between "Run" and "Re-run" made the row
-# reflow on every model switch, which read as the page flickering.
-choose, act, status = st.columns([1, 1, 2])
-
-with choose:
-    choice_label = st.radio(
-        "Model", list(MODEL_CHOICES), horizontal=True,
-        help="\n\n".join(f"**{k}** — {v['note']}" for k, v in MODEL_CHOICES.items()),
-    )
-
+choice_label = st.session_state["model_choice"]
 model_id = MODEL_CHOICES[choice_label]["model"]
-
-# Reuse silently when this exact account, model and data have been analysed
-# before. Changing any of the three is a genuine miss and runs fresh.
+fingerprint = cached_account_fingerprint(df, account_id)
 report = cache.load(fingerprint, account_id, model_id)
+
+# Packs are only built for pages that show them. Attribute / Prioritise read
+# the finished report; hashing and assembling the pack on those clicks was
+# wasted work that showed up as lag.
+needs_pack = current_page in ("data", "verdict") or (
+    report is not None and "evidence_timeline" not in report
+)
+pack = cached_evidence_pack(df, account_id) if needs_pack else None
 
 # A report cached before the evidence timeline existed has a verdict but no
 # case behind it, which would render a PDF full of blanks. Both keys are
@@ -580,211 +663,214 @@ report = cache.load(fingerprint, account_id, model_id)
 # found this file already guarantees the pack matches the data the verdict
 # was computed from — so they can be rebuilt here rather than paying for the
 # investigation again.
-if report is not None and "evidence_timeline" not in report:
+if pack is not None and report is not None and "evidence_timeline" not in report:
     report["evidence"] = pack
     report["evidence_timeline"] = build_timeline(pack)
 
-with act:
-    st.write("")
-    investigate_clicked = st.button(
-        "Investigate with AI",
-        type="primary",
-        width="stretch",
-        disabled=report is not None,
-        help="Already analysed with this model — the saved result is shown below."
-        if report is not None else "Runs the single LLM call for this account.",
-    )
+page_spec = next(p for p in PAGES if p["key"] == current_page)
+theme.page(page_spec["title"], page_spec["caption"])
 
-with status:
-    st.write("")
-    if report is not None:
-        st.caption(
-            f"Already reviewed by the **{choice_label.lower()}** model — this is the saved result."
+
+def render_data_page() -> None:
+    render_account_dashboard(df, account_id, pack=pack)
+
+
+def render_verdict_page() -> None:
+    # The control row keeps the SAME three columns and the SAME single button in
+    # every state — only the button's enabled-ness and the status text change.
+    # Swapping the button's label and type between "Run" and "Re-run" made the row
+    # reflow on every model switch, which read as the page flickering.
+    choose, act, status = st.columns([1, 1, 2])
+
+    with choose:
+        st.radio(
+            "Model", list(MODEL_CHOICES), horizontal=True, key="model_choice",
+            help="\n\n".join(f"**{k}** — {v['note']}" for k, v in MODEL_CHOICES.items()),
         )
 
-if report is None and investigate_clicked:
-    with st.spinner(f"Investigating {account_id} with the {choice_label.lower()} model…"):
-        report, error = investigate_account(df, account_id, pack, choice_label)
-    if error:
-        st.error(error)
-        st.info("The evidence above is unaffected — only the model step failed.")
-        report = None
-    else:
-        cache.save(fingerprint, account_id, model_id, report)
-        st.rerun()
-
-if report:
-    render_verdict(report, pack=pack)
-    render_intervention(report, fingerprint, account_id, model_id, choice_label)
-    render_pdf_download(report)
-else:
-    st.info(f"{account_id} has not been reviewed yet — click **Investigate with AI** above.")
-
-st.divider()
-
-
-# --- 3. Accuracy check -----------------------------------------------------
-
-st.markdown("### 3 · How much should you trust that verdict?")
-st.caption(
-    "For this demo set, the right answer for every account was written down in advance and "
-    "kept away from the agent. Comparing the two shows you how reliable the verdict is — "
-    "which is what tells you how much weight to give it on a real account, where nobody "
-    "knows the answer yet."
-)
-
-try:
-    answer_key = load_answer_key()
-except AnswerKeyUnavailable:
-    answer_key = None
-
-key_row = (answer_key or {}).get(account_id)
-
-if not using_reference or key_row is None:
-    st.caption(
-        "The Answer Key only covers the reference dataset's 18 accounts, so there is "
-        "nothing to score this account against."
-    )
-elif not report:
-    st.caption(
-        f"Run the investigation above and this will score it. "
-        f"This account is the **{key_row['archetype']}** case."
-    )
-    with st.expander("What this account is designed to test (spoiler)"):
-        st.markdown(f"**Tests:** {key_row['what_it_tests']}")
-        st.markdown(f"**Really happening:** {key_row['what_is_really_happening']}")
-else:
-    result = score_report(report, key_row)
-
-    # Full-width verdict line, then the detail beneath it. The previous
-    # two-column split put a short badge beside three long paragraphs, so the
-    # columns had wildly different heights and nothing lined up.
-    outcome_line = (
-        f"Expected **{result['expected_outcome']}** · agent said **{result['actual_outcome']}**"
-    )
-    if result["outcome_match"]:
-        st.success(f"**Correct.** {outcome_line}")
-    else:
-        st.error(f"**Missed.** {outcome_line}")
-
-    facts = st.columns(2)
-    facts[0].markdown(f"**Archetype**  \n{result['archetype']}")
-    confidence_note = "not scored"
-    if result["confidence_match"] is not None:
-        mark = "matches" if result["confidence_match"] else "differs"
-        confidence_note = (
-            f"expected {result['expected_confidence']}, "
-            f"got {result['actual_confidence']} — {mark}"
-        )
-    facts[1].markdown(f"**Confidence**  \n{confidence_note}")
-
-    st.markdown(f"**What this account tests**  \n{result['what_it_tests']}")
-    st.markdown(f"**What is really happening**  \n{result['what_is_really_happening']}")
-
-    st.caption(
-        "The Answer Key only ever scores a finished verdict — it is never shown to the "
-        "agent. It exists for this dataset alone; an unseen file will have none."
-    )
-
-
-st.divider()
-
-
-# --- 4. Cross-account comparison -------------------------------------------
-#
-# A separate question from everything above, which is why it is a separate
-# section rather than a change to any of them: sections 1-3 are about ONE
-# account, and this one is about how a set of them read together. It runs off
-# the same dated findings the single-account view uses, so the two can never
-# disagree about what the numbers say.
-
-st.markdown("### 4 · How do these accounts compare?")
-st.caption(
-    "Read several accounts side by side and see which of them are living the same story — "
-    "who is being discounted harder, who is quietly trading down, who is simply growing. "
-    "It reuses the findings already computed above, so nothing new is measured here; the "
-    "AI only groups and explains them in business terms."
-)
-
-# Seeded from step 2, not from the whole book: this section compares the
-# account you just investigated against others you choose, so it starts with
-# that one account and nothing else. With no investigation yet there is
-# nothing to compare from, and the picker stays empty.
-#
-# The widget key carries whether the account has been investigated, because
-# Streamlit applies `default` only when it first sees a key. Without that,
-# the picker rendered empty before the investigation would stay empty after
-# it, and the account you just ran would never appear.
-default_selection = [account_id] if report else []
-
-selected_accounts = st.multiselect(
-    "Accounts to compare",
-    accounts,
-    default=default_selection,
-    key=f"compare_selection_{account_id}_{'investigated' if report else 'new'}",
-    format_func=lambda a: f"{a} — {names[a]}" if names.get(a) else a,
-    help=(
-        "Starts with the account you investigated above. Add the accounts you want to read it "
-        "against — up to "
-        f"{MAX_ACCOUNTS}."
-    ),
-)
-
-if not selected_accounts and not report:
-    st.info(
-        f"Nothing to compare yet — investigate an account in step 2 above and it will appear "
-        "here, ready to read against any others you pick."
-    )
-elif len(selected_accounts) < MIN_ACCOUNTS:
-    st.info(
-        f"Add at least one more account to compare {account_id} against."
-        if selected_accounts
-        else f"Pick at least {MIN_ACCOUNTS} accounts to compare."
-    )
-elif len(selected_accounts) > MAX_ACCOUNTS:
-    st.warning(
-        f"{len(selected_accounts)} accounts selected — a comparison reads at most "
-        f"{MAX_ACCOUNTS} at once. Remove {len(selected_accounts) - MAX_ACCOUNTS} to continue."
-    )
-else:
-    comparison_digest = cached_comparison_digest(df, tuple(selected_accounts))
-    selection_fp = cache.selection_fingerprint(df, selected_accounts)
-
-    # Reuse silently when this exact set of accounts, model and data has been
-    # compared before — the same rule the single-account cache follows.
-    comparison = cache.load_comparison(selection_fp, model_id)
-
-    run_col, note_col = st.columns([1, 3])
-    with run_col:
-        compare_clicked = st.button(
-            "Compare with AI",
+    with act:
+        st.write("")
+        investigate_clicked = st.button(
+            "Investigate with AI",
             type="primary",
             width="stretch",
-            disabled=comparison is not None,
-            help="Already compared — the saved result is shown below."
-            if comparison is not None
-            else f"One model call reading all {len(selected_accounts)} accounts together.",
+            disabled=report is not None,
+            help="Already analysed with this model — the saved result is shown below."
+            if report is not None else "Runs the single LLM call for this account.",
         )
-    with note_col:
+
+    with status:
         st.write("")
-        if comparison is not None:
+        if report is not None:
             st.caption(
-                f"These {len(selected_accounts)} accounts have already been compared with the "
-                f"**{choice_label.lower()}** model — this is the saved result."
+                f"Already reviewed by the **{choice_label.lower()}** model — this is the saved result."
             )
 
-    if comparison is None and compare_clicked:
-        with st.spinner(
-            f"Comparing {len(selected_accounts)} accounts with the {choice_label.lower()} model…"
-        ):
-            comparison, compare_error = compare_selected_accounts(comparison_digest, choice_label)
-        if compare_error:
-            st.error(compare_error)
-            st.info("The per-account analysis above is unaffected — only the comparison failed.")
-            comparison = None
+    if report is None and investigate_clicked:
+        with st.spinner(f"Investigating {account_id} with the {choice_label.lower()} model…"):
+            fresh, error = investigate_account(df, account_id, pack, choice_label)
+        if error:
+            st.error(error)
+            st.info("The evidence on Detect is unaffected — only the model step failed.")
         else:
-            cache.save_comparison(selection_fp, model_id, comparison)
+            cache.save(fingerprint, account_id, model_id, fresh)
             st.rerun()
 
-    if comparison:
-        render_comparison(comparison, comparison_digest)
+    if report:
+        render_verdict(report, pack=pack)
+        render_intervention(report, fingerprint, account_id, model_id, choice_label)
+        render_pdf_download(report)
+    else:
+        st.info(f"{account_id} has not been reviewed yet — click **Investigate with AI** above.")
+
+
+def render_score_page() -> None:
+    try:
+        answer_key = load_answer_key()
+    except AnswerKeyUnavailable:
+        answer_key = None
+
+    key_row = (answer_key or {}).get(account_id)
+
+    if not using_reference or key_row is None:
+        st.caption(
+            "The Answer Key only covers the reference dataset's 18 accounts, so there is "
+            "nothing to score this account against."
+        )
+    elif not report:
+        st.caption(
+            f"Run the investigation under Investigate and this will score it. "
+            f"This account is the **{key_row['archetype']}** case."
+        )
+        with st.expander("What this account is designed to test (spoiler)"):
+            st.markdown(f"**Tests:** {key_row['what_it_tests']}")
+            st.markdown(f"**Really happening:** {key_row['what_is_really_happening']}")
+    else:
+        result = score_report(report, key_row)
+
+        # Full-width verdict line, then the detail beneath it. The previous
+        # two-column split put a short badge beside three long paragraphs, so the
+        # columns had wildly different heights and nothing lined up.
+        outcome_line = (
+            f"Expected **{result['expected_outcome']}** · agent said **{result['actual_outcome']}**"
+        )
+        if result["outcome_match"]:
+            st.success(f"**Correct.** {outcome_line}")
+        else:
+            st.error(f"**Missed.** {outcome_line}")
+
+        facts = st.columns(2)
+        facts[0].markdown(f"**Archetype**  \n{result['archetype']}")
+        confidence_note = "not scored"
+        if result["confidence_match"] is not None:
+            mark = "matches" if result["confidence_match"] else "differs"
+            confidence_note = (
+                f"expected {result['expected_confidence']}, "
+                f"got {result['actual_confidence']} — {mark}"
+            )
+        facts[1].markdown(f"**Confidence**  \n{confidence_note}")
+
+        st.markdown(f"**What this account tests**  \n{result['what_it_tests']}")
+        st.markdown(f"**What is really happening**  \n{result['what_is_really_happening']}")
+
+        st.caption(
+            "The Answer Key only ever scores a finished verdict — it is never shown to the "
+            "agent. It exists for this dataset alone; an unseen file will have none."
+        )
+
+
+def render_compare_page() -> None:
+    # Seeded from the AI verdict, not from the whole book: this page compares
+    # the account you just investigated against others you choose, so it starts
+    # with that one account and nothing else. With no investigation yet there
+    # is nothing to compare from, and the picker stays empty.
+    #
+    # The widget key carries whether the account has been investigated, because
+    # Streamlit applies `default` only when it first sees a key. Without that,
+    # the picker rendered empty before the investigation would stay empty after
+    # it, and the account you just ran would never appear.
+    default_selection = [account_id] if report else []
+
+    selected_accounts = st.multiselect(
+        "Accounts to compare",
+        accounts,
+        default=default_selection,
+        key=f"compare_selection_{account_id}_{'investigated' if report else 'new'}",
+        format_func=lambda a: f"{a} — {names[a]}" if names.get(a) else a,
+        help=(
+            "Starts with the account you investigated. Add the accounts you want to read it "
+            "against — up to "
+            f"{MAX_ACCOUNTS}."
+        ),
+    )
+
+    if not selected_accounts and not report:
+        st.info(
+            "Nothing to compare yet — investigate an account under Investigate "
+            "and it will appear here, ready to read against any others you pick."
+        )
+    elif len(selected_accounts) < MIN_ACCOUNTS:
+        st.info(
+            f"Add at least one more account to compare {account_id} against."
+            if selected_accounts
+            else f"Pick at least {MIN_ACCOUNTS} accounts to compare."
+        )
+    elif len(selected_accounts) > MAX_ACCOUNTS:
+        st.warning(
+            f"{len(selected_accounts)} accounts selected — a comparison reads at most "
+            f"{MAX_ACCOUNTS} at once. Remove {len(selected_accounts) - MAX_ACCOUNTS} to continue."
+        )
+    else:
+        comparison_digest = cached_comparison_digest(df, tuple(selected_accounts))
+        selection_fp = cache.selection_fingerprint(df, selected_accounts)
+
+        # Reuse silently when this exact set of accounts, model and data has been
+        # compared before — the same rule the single-account cache follows.
+        comparison = cache.load_comparison(selection_fp, model_id)
+
+        run_col, note_col = st.columns([1, 3])
+        with run_col:
+            compare_clicked = st.button(
+                "Compare with AI",
+                type="primary",
+                width="stretch",
+                disabled=comparison is not None,
+                help="Already compared — the saved result is shown below."
+                if comparison is not None
+                else f"One model call reading all {len(selected_accounts)} accounts together.",
+            )
+        with note_col:
+            st.write("")
+            if comparison is not None:
+                st.caption(
+                    f"These {len(selected_accounts)} accounts have already been compared with the "
+                    f"**{choice_label.lower()}** model — this is the saved result."
+                )
+
+        if comparison is None and compare_clicked:
+            with st.spinner(
+                f"Comparing {len(selected_accounts)} accounts with the {choice_label.lower()} model…"
+            ):
+                comparison, compare_error = compare_selected_accounts(
+                    comparison_digest, choice_label
+                )
+            if compare_error:
+                st.error(compare_error)
+                st.info("The per-account analysis is unaffected — only the comparison failed.")
+                comparison = None
+            else:
+                cache.save_comparison(selection_fp, model_id, comparison)
+                st.rerun()
+
+        if comparison:
+            render_comparison(comparison, comparison_digest)
+
+
+if current_page == "data":
+    render_data_page()
+elif current_page == "verdict":
+    render_verdict_page()
+elif current_page == "score":
+    render_score_page()
+else:
+    render_compare_page()

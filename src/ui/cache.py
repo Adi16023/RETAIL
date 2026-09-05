@@ -30,6 +30,18 @@ import pandas as pd
 CACHE_DIR = Path(__file__).resolve().parents[2] / ".cache" / "investigations"
 
 
+def dataframe_identity(df: pd.DataFrame) -> int:
+    """Streamlit cache key for a DataFrame that already lives in ``@st.cache_data``.
+
+    The default hasher walks every cell. That is correct for an untrusted
+    input and far too slow for a lookup we do on every widget click — 3,000
+    transaction rows, hashed, just to decide the pack is still the pack.
+    Ingest is already cached, so the same file is the same object across
+    reruns and ``id`` is a safe stand-in.
+    """
+    return id(df)
+
+
 def account_fingerprint(df: pd.DataFrame, account_id: str) -> str:
     """Short, stable hash of one account's transaction rows."""
     rows = df[df["account_id"] == account_id]

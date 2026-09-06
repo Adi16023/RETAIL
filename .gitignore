@@ -24,3 +24,5 @@ data/synthetic/
 
 # Trained model artefacts — rebuilt by scripts/train_leak_classifier.py.
 # models/
+
+hackathon.txt

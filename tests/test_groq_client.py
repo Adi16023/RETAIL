@@ -17,6 +17,7 @@ from pipeline.agent import SUBMIT_VERDICT_TOOL, investigate
 from pipeline.evidence import build_evidence_pack
 from pipeline.groq_client import (
     DEFAULT_GROQ_MODEL,
+    GROQ_MAX_OUTPUT_TOKENS,
     _GroqMessages,
     _anthropic_messages_to_groq,
     _anthropic_tool_to_groq,
@@ -124,7 +125,7 @@ def test_investigate_runs_unchanged_through_groq_shim():
         "confidence": "high", "defer": False, "leak_dimensions": ["category_mix"],
         "attributed_categories": [DEFECTED_CATEGORY],
         "cited_facts": ["fact"], "narrative": "narrative", "recommended_actions": [],
-        "data_needed_if_deferring": [],
+        "data_needed_if_deferring": [], "model_opinion_response": "",
     }
     fake_groq = FakeGroqClient([
         groq_response(
@@ -146,8 +147,21 @@ def test_investigate_runs_unchanged_through_groq_shim():
     # model substitution: an Anthropic model ID must not be sent to Groq
     first_call_model = fake_groq.chat.completions.calls[0]["model"]
     assert first_call_model == DEFAULT_GROQ_MODEL
+    # the output ceiling agent.py asks for is sized for Claude's thinking;
+    # Groq bills the requested ceiling against its per-minute cap, so the
+    # shim must clamp it rather than pass it through
+    assert fake_groq.chat.completions.calls[0]["max_tokens"] == GROQ_MAX_OUTPUT_TOKENS
     # the tool result from call_a must have reached the second request as a "tool" message
     second_call_messages = fake_groq.chat.completions.calls[1]["messages"]
     tool_messages = [m for m in second_call_messages if m["role"] == "tool"]
     assert len(tool_messages) == 1
     assert tool_messages[0]["tool_call_id"] == "call_a"
+
+
+def test_shim_clamps_the_output_ceiling_but_never_raises_it():
+    fake_groq = FakeGroqClient([groq_response(content="ok"), groq_response(content="ok")])
+    client = GroqBackedTestClient(fake_groq)
+    client.messages.create(model="x", max_tokens=16000, system="s", tools=[], messages=[])
+    client.messages.create(model="x", max_tokens=512, system="s", tools=[], messages=[])
+    sent = [c["max_tokens"] for c in fake_groq.chat.completions.calls]
+    assert sent == [GROQ_MAX_OUTPUT_TOKENS, 512]

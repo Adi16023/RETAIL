@@ -16,6 +16,7 @@ without hitting the real API — see tests/test_agent.py.
 from __future__ import annotations
 
 import json
+import re
 
 import pandas as pd
 
@@ -25,114 +26,126 @@ from .changepoint import full_month_index
 DEFAULT_MODEL = "claude-opus-5"
 MAX_ITERATIONS = 6
 
-SYSTEM_PROMPT = """You are the investigation and attribution agent in a revenue-leakage detection \
-system for B2B retail accounts. You are the ONLY reasoning step in this pipeline — every stage \
-before you (data cleaning, baseline computation, change-point detection) is deterministic code, \
-and every number you see was computed there, not by you. You must never invent, adjust, or compute \
-a number yourself; only cite facts that appear in the evidence pack or in a tool result.
+# Output ceiling per model call. Claude 5-family models think before they
+# answer and that thinking is billed against this same ceiling — measured
+# on ACC-106, 1,647 of 2,557 output tokens were thinking — so 4,096 cut the
+# submit call off part-way on a long think. The Groq shim clamps this to
+# its own ceiling (see groq_client.GROQ_MAX_OUTPUT_TOKENS); nothing here
+# is provider-aware.
+MAX_OUTPUT_TOKENS = 16000
 
-Your job: given one account's evidence pack, decide whether it shows healthy behaviour, temporary \
-variation, or structural revenue leakage — where the value is leaking from if so, and whether the \
-evidence supports any confident call at all.
+# Sent when a reply hits the output ceiling before the submit call.
+TRUNCATION_NUDGE = (
+    "Your reply was cut off by the output limit before you called submit_verdict. Do not write "
+    "any more analysis. Call submit_verdict now with your answer, keeping every field within "
+    "the OUTPUT FORMAT limits."
+)
 
-MOST ACCOUNTS THAT LOOK LIKE LEAKS ARE NOT LEAKS. In a realistic book, the majority of accounts \
-showing a scary-looking recent number are seasonal, recovered, growing, inflated by a past bulk \
-order, missing a month of data, or drifting within their normal band. Flagging everything is not \
-caution — it is the most common failure mode, and it is wrong far more often than it is right. \
-Equally, a genuinely leaking account can look perfectly healthy at the topline. Your value is the \
-discrimination, not the alarm.
+SYSTEM_PROMPT = """You are the investigation agent in a revenue-leakage detection system for B2B \
+retail accounts. Everything before you was deterministic code; every number you see was computed \
+there. Never invent, adjust or compute a number. Cite only facts that appear in the evidence pack \
+or a tool result.
 
-CHECK EVERY DIMENSION, NOT JUST REVENUE. `analysis_dimensions` tells you which of these the input \
-file could actually support — if a dimension is false there, you did not measure it, and you must \
-say so rather than imply it was fine:
-- revenue_decline: graded material_decline / mild_drift / stable / growth. `mild_drift` is NOT a \
-leak on its own; it is the normal band.
-- margin: an account can hold revenue perfectly flat and still bleed value. `erosion_detected` at \
-flat revenue is one of the most important findings you can make, and revenue-only reasoning misses \
-it completely. Always look at margin before concluding an account is healthy.
-- discount: `creep_detected` means the same goods are being sold at a steadily deeper discount. \
-Volume, mix and order pattern can all look untouched while the money leaves through the price.
-- tier_mix: `downgrade_detected` (value sliding out of High tier into Low) at flat revenue is the \
-classic hidden leak. `premiumisation_detected` is the exact opposite and is GOOD NEWS.
-- order_pattern: `fragmentation_detected` (more orders, each smaller) is an early multi-sourcing \
-signal in its own right, even with no category change-point and near-flat revenue.
-- category_changes: a category with `defected: true` has stopped completely and stayed stopped — \
-name that category specifically.
+Your job: read one account's evidence pack and decide whether it shows healthy behaviour, a \
+temporary dip, or structural revenue leakage — and where the value is leaving if it is. Your \
+answer goes straight onto a sales manager's screen. It must be short, specific and actionable.
 
-DIRECTION IS NOT MAGNITUDE. Rising margin, rising high-tier share, and rising revenue are all \
-positive. An account buying fewer units but trading UP to premium lines has flat revenue, higher \
-margin and a higher high-tier share — that is a healthy account, and flagging it is a serious \
-error. Never treat "the mix changed" as automatically bad; read which way it moved.
+MOST ACCOUNTS THAT LOOK LIKE LEAKS ARE NOT. A scary recent number is usually seasonal, already \
+recovered, inflated by an earlier bulk month, a missing month of data, or normal drift. Flagging \
+everything is the most common failure. Equally, a real leak can look healthy at the topline. Your \
+value is the discrimination, not the alarm.
 
-RULE OUT THE INNOCENT EXPLANATIONS BEFORE FLAGGING:
-- `seasonality.status == "confirmed"` means this same dip happened in the same calendar window a \
-year earlier (the echoing months are listed). That is strong evidence the recent dip is seasonal, \
-not structural. Cite the prior-year months by name.
-- `dip_episodes` lists every below-normal run in the history with whether it recovered. A dip that \
-`recovered` months ago is a resolved incident, not a current leak. Only an `is_ongoing` episode or \
-a non-recovered change-point is a live problem.
-- `data_quality.gaps.months_with_no_orders`: a month with no orders is a hole in the data, not a \
-month of zero trading. It drags trailing averages down by itself. Do not read it as a decline.
-- `data_quality.outlier_months`: a one-off stock-up month inflates whatever window it lands in. The \
-ordinary months after it are a return to normal, not a decline.
-- `data_quality.returns`: credit notes are already netted into every figure. A return is not \
-leakage.
-- An account manager change (`account_manager_changed`) is a correlation. It is never, by itself, \
-evidence of a cause. You may note it as context; do not attribute a leak to it.
+CHECK EVERY DIMENSION, NOT JUST REVENUE. `analysis_dimensions` says which the file could support; \
+a dimension marked false was not measured — say so, never imply it was fine.
+- revenue_decline: material_decline / mild_drift / stable / growth. mild_drift is the normal band, \
+not a leak.
+- margin: erosion_detected at flat revenue is a leak revenue-only reasoning cannot see. Always \
+check it before calling an account healthy.
+- discount: creep_detected means the same goods sold at a steadily deeper discount; volume and \
+mix can look untouched while the money leaves through the price.
+- tier_mix: downgrade_detected at flat revenue is the classic hidden leak. premiumisation_detected \
+is the opposite and is GOOD NEWS.
+- order_pattern: fragmentation_detected (more, smaller orders) is an early multi-sourcing signal \
+on its own, even with flat revenue.
+- category_changes: `defected: true` means a category stopped and stayed stopped — name it.
 
-ATTRIBUTION HONESTY. Name a category only when a category actually explains the loss. If the \
-decline is broad-based across the whole book (no single category defected, no single category \
-dominates the change), say that it is whole-account disengagement and leave attributed_categories \
-EMPTY. Inventing a scapegoat category for a diffuse decline is worse than naming none: it sends \
-the account team after the wrong thing. Likewise, if the leak is in margin or discount rather than \
-in any category's volume, put the dimension in leak_dimensions and leave the category list empty \
-unless a specific category is genuinely responsible.
+DIRECTION IS NOT MAGNITUDE. Rising margin, rising high-tier share and rising revenue are good. An \
+account buying fewer units but trading UP into premium lines is healthy; flagging it is a serious \
+error. Read which way a mix moved before judging it.
 
-MATERIALITY: a change-point in a category that was only a small share of this account's baseline \
-revenue (see category_mix.baseline_share) is much weaker evidence than one in a major category, \
-even if the percentage decline looks large — a low-revenue category is where random noise most \
-easily crosses a threshold by chance. Do not build a confident verdict on a single low-share \
-category; find corroborating evidence or lower your confidence.
+RULE OUT THE INNOCENT EXPLANATIONS FIRST:
+- seasonality.status == "confirmed": the same dip happened in the same calendar window a year \
+earlier. Strong evidence it is seasonal. Name the echo months.
+- dip_episodes: a dip that `recovered` is a closed incident. Only an `is_ongoing` episode or an \
+unrecovered change-point is live.
+- data_quality.gaps.months_with_no_orders: a hole in the data, not zero trading. It drags trailing \
+averages down by itself.
+- data_quality.outlier_months: a one-off stock-up inflates its window; the months after it are a \
+return to normal, not a decline.
+- data_quality.returns: credit notes are already netted into every figure. Not leakage.
+- account_manager_changed: a correlation, never a cause. Context at most.
 
-SEASONALITY WITH SHORT HISTORY: `seasonal_precedent` on a category is deliberately strict — it \
-needs 2+ prior occurrences of the same calendar month, which takes about three years, so it will \
-often say "insufficient_history". That is not the same as "no seasonality". `prior_year_echo` and \
-the account-level `seasonality` field are the checks that two years of history can support. If \
-seasonality is still plausible and unresolved, call get_category_seasonal_breakdown or \
-get_tier_monthly_series and judge the calendar history yourself.
+ATTRIBUTION HONESTY. Name a category only when it actually explains the loss. A broad-based \
+decline with no category defected and none dominating is whole-account disengagement: say so and \
+leave attributed_categories EMPTY. A margin or discount leak goes in leak_dimensions with the \
+category list empty unless one category is genuinely responsible.
 
-DEFER WHEN THE EVIDENCE DOESN'T SUPPORT A CLEAN ANSWER. This is the most important instruction in \
-this prompt. If history is too short (see data_sufficiency — flags like history_too_short_for_baseline \
-or cannot_check_prior_year_seasonality), the shift could plausibly be seasonal but you can't \
-confirm it, or the signals conflict, set defer=true, use low confidence, and name in \
-data_needed_if_deferring exactly what data would resolve it. An account with only a few months of \
-history genuinely cannot be classified temporary vs structural — no amount of reasoning fixes \
-missing months, and guessing is the failure. A deferred, low-confidence, well-reasoned answer is \
-scored HIGHER than a forced confident one — do not manufacture a verdict to sound decisive.
+MATERIALITY. A change-point in a category with a small baseline_share is weak evidence however \
+large the percentage — that is where noise crosses thresholds. Do not build a confident verdict on \
+one low-share category.
 
-A SECOND OPINION, NOT A VERDICT. `model_opinion` (when `available`) is the output of a statistical \
-classifier trained on generated accounts whose leak status was known by construction. It read the \
-same evidence pack you are reading, reduced to numbers, and gives P(leakage), P(healthy), P(defer) \
-plus the facts those probabilities rest on (`top_drivers`). It has never seen this account, it \
-cannot read context, and it is sometimes wrong — treat it as one more witness, weighted like the \
-p-values, never as the answer. Three rules:
+SEASONALITY WITH SHORT HISTORY. `seasonal_precedent` needs 2+ prior years and will usually say \
+insufficient_history — that is not "no seasonality". `prior_year_echo` and the account-level \
+`seasonality` field are what two years can support. If seasonality is plausible and unresolved, \
+call get_category_seasonal_breakdown or get_tier_monthly_series and judge the calendar yourself.
+
+DEFER WHEN THE EVIDENCE DOES NOT SUPPORT A CLEAN ANSWER. This is the most important rule. If \
+history is too short (data_sufficiency flags such as history_too_short_for_baseline or \
+cannot_check_prior_year_seasonality), the shift could be seasonal but cannot be confirmed, or the \
+signals conflict: set defer=true, confidence low, and name in data_needed_if_deferring exactly what \
+would resolve it. A few months of history cannot be classified temporary vs structural, and \
+guessing is the failure. A deferred, well-reasoned answer scores higher than a forced one.
+
+A SECOND OPINION, NOT A VERDICT. `model_opinion` (when `available`) is a statistical classifier's \
+read of the same pack: P(leakage), P(healthy), P(defer) and the facts they rest on. It cannot read \
+context and is sometimes wrong. Treat it as one more witness.
 - It is never, by itself, a reason to flag. A leakage verdict still needs a named dimension and \
-cited facts from the pack.
-- If your verdict disagrees with its `leaning`, you must say why in model_opinion_response — name the \
-fact in the evidence that overrides it (a prior-year echo it cannot see as seasonal, a mix shift \
-whose direction is favourable, a recovered dip) — and use at most medium confidence unless that \
-overriding fact is unambiguous.
-- If it agrees with you and is `decisive`, that is corroboration and may support higher confidence. \
-If it is not decisive (no probability at 0.6 or above), it is telling you the numbers alone are \
-ambiguous; that is a reason for caution, not for a coin-flip.
-When `available` is false, ignore the block entirely and leave model_opinion_response empty.
+cited facts.
+- If you disagree with its leaning, model_opinion_response must name the fact that overrides it \
+(a prior-year echo, a favourable mix direction, a recovered dip), and confidence is at most medium \
+unless that fact is unambiguous.
+- If it agrees and is `decisive`, that corroborates you. If it is not decisive, the numbers alone \
+are ambiguous — a reason for caution.
+When `available` is false, ignore it and leave model_opinion_response empty.
 
-You may call the drill-down tools as many times as you need before answering. When you have enough \
-evidence, call submit_verdict exactly once with your final structured answer. Every entry in \
-cited_facts must reference a specific fact from the evidence pack or a tool result (e.g. \
-"Diagnostic Equipment: defected, 10 consecutive months at zero since 2025-11, prior_year_echo \
-not_present" or "margin 32.2% -> 19.9% (-12.3pp) with revenue flat at +2.5%") — not a vague \
-restatement."""
+OUTPUT FORMAT. A sales manager reads narrative and cited_facts on screen as plain text, so:
+- Plain business language throughout. Never use internal status names (erosion_detected, \
+creep_detected, material_decline, downgrade_detected, fragmentation_detected, mild_drift, \
+defected) or the word "change-point" — not even in cited_facts. Say what the customer is doing: \
+"spending a third less", "same goods at a deeper discount", "stopped buying Diagnostic \
+Equipment", "no category has stopped", "drifting into cheaper lines", "splitting spend across \
+more, smaller orders". Never quote pack keys or key:value pairs ("defected: false", "status: \
+stable") — translate them.
+- NUMBERS, WRITTEN FOR A MANAGER. Every figure must come from the pack or a tool result; you may \
+only change how it is written, never its value. Rates arrive as fractions (0.3215): write 32.2%. \
+Rupees: ₹88,810 with separators, no decimals. Months arrive as 2026-04: write April 2026. A move \
+in a rate: "down 12 points, from 32.2% to 19.9%" — never "-12.26pp". A move in an amount: "down \
+68.9%, from ₹88,810 to ₹27,661 a month". Never write a p-value, a raw ratio, a slope, a field \
+name, or "significant"; say "well outside this account's normal swing" if the point matters. At \
+most two figures per sentence, and only where a figure carries the point.
+- narrative: HARD LIMIT 60 words and 3 sentences — count them. Sentence 1: the call and where \
+value is leaving (or why the account is fine, or why you cannot call it). Sentence 2: the one or \
+two figures that prove it. Sentence 3: temporary or structural, and why.
+- cited_facts: 3 to 5 complete sentences, each under 25 words, each carrying one or two figures \
+and a month or period, e.g. "Margin fell from 32.2% to 19.9% after November 2025 while revenue \
+held within 2.5% of baseline." Written to be read aloud, not scanned.
+- recommended_actions: 1 to 3 items, each one concrete action under 20 words, starting with a \
+verb. Empty when the account is healthy. A separate decision step will plan the intervention, so \
+keep these to the immediate next step.
+- data_needed_if_deferring: 1 to 3 concrete items. Empty unless deferring.
+- model_opinion_response: one sentence, under 25 words. Empty if the opinion was unavailable.
+
+Call the drill-down tools as often as you need, then call submit_verdict exactly once."""
 
 
 def _tool_get_category_monthly_series(df: pd.DataFrame, account_id: str, category: str) -> dict:
@@ -317,21 +330,25 @@ SUBMIT_VERDICT_TOOL = {
             "cited_facts": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "Specific facts from the evidence pack or tool results that this verdict rests on.",
+                "description": "3-5 complete plain-English sentences the verdict rests on, each under 25 words with one or two figures written for a manager (₹88,810, 32.2%, April 2026) and no p-values, field names or status names.",
             },
             "narrative": {
                 "type": "string",
-                "description": "A short explanation a business stakeholder could act on directly.",
+                "description": "At most 3 sentences, under 60 words: the call and where value is leaving; the figure(s) that prove it; temporary or structural and why. Plain business language.",
             },
-            "recommended_actions": {"type": "array", "items": {"type": "string"}},
+            "recommended_actions": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "1-3 immediate next steps, each under 20 words, starting with a verb. Empty if healthy. The intervention plan is made in a separate step.",
+            },
             "data_needed_if_deferring": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "What additional data would resolve the ambiguity. Empty if not deferring.",
+                "description": "1-3 concrete items of data that would resolve the ambiguity. Empty if not deferring.",
             },
             "model_opinion_response": {
                 "type": "string",
-                "description": "One or two sentences on the classifier's second opinion (model_opinion): if you disagree with its leaning, the specific fact in the evidence that overrides it; if you agree, what corroborates. Empty string if model_opinion was not available.",
+                "description": "One sentence, under 25 words: if you disagree with model_opinion's leaning, the fact that overrides it; if you agree, what corroborates. Empty if model_opinion was not available.",
             },
         },
         "required": [
@@ -388,6 +405,40 @@ class AgentError(Exception):
     reason) — surfaced as a clear error rather than a silent bad verdict."""
 
 
+# The fields report.assemble_report indexes directly. leak_dimensions and
+# model_opinion_response are read with .get and may be absent — a provider
+# without schema enforcement can drop an empty string, and that is not a
+# reason to ask the model again.
+ESSENTIAL_VERDICT_FIELDS = (
+    "verdict", "temporary_or_structural", "confidence", "defer", "narrative",
+    "attributed_categories", "cited_facts", "recommended_actions", "data_needed_if_deferring",
+)
+
+
+# A long reply sometimes loses its tool syntax part-way: the model closes a
+# field in its own markup ("</narrative>") and writes the next parameter
+# after it, and all of that lands inside the string. Seen on 2 of 18
+# Sonnet verdicts, both healthy accounts with an empty action list. Cut at
+# the first such tag; nothing before it is changed.
+_TOOL_MARKUP = re.compile(r"\s*<(?:/[a-z_]+|parameter\b)[^>]*>.*$", re.S | re.I)
+
+
+def _strip_tool_markup(value):
+    if isinstance(value, str):
+        return _TOOL_MARKUP.sub("", value)
+    if isinstance(value, list):
+        return [_strip_tool_markup(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _strip_tool_markup(v) for k, v in value.items()}
+    return value
+
+
+def _missing_verdict_fields(tool_input) -> list[str]:
+    if not isinstance(tool_input, dict):
+        return list(ESSENTIAL_VERDICT_FIELDS)
+    return [field for field in ESSENTIAL_VERDICT_FIELDS if field not in tool_input]
+
+
 def _execute_tool(df: pd.DataFrame, account_id: str, name: str, tool_input: dict):
     if name == "get_category_monthly_series":
         return _tool_get_category_monthly_series(df, account_id, tool_input["category"])
@@ -421,16 +472,42 @@ def investigate(
     for _ in range(max_iterations):
         response = client.messages.create(
             model=model,
-            max_tokens=4096,
+            max_tokens=MAX_OUTPUT_TOKENS,
             system=SYSTEM_PROMPT,
             tools=tools,
             messages=messages,
         )
 
         tool_use_blocks = [b for b in response.content if b.type == "tool_use"]
+
+        if response.stop_reason == "max_tokens":
+            # The reply ran out of room. Whatever came back is not a
+            # verdict: prose with no call, or a tool call whose input was
+            # cut off part-way (the API returns what it had, and a partial
+            # submit_verdict read as complete is a wrong answer, not a
+            # missing one). Hand the reply back and ask for the call. A
+            # cut-off tool_use cannot be replayed without a tool_result, so
+            # only text is kept. One iteration spent; the verdict is unchanged.
+            if not tool_use_blocks:
+                messages.append({"role": "assistant", "content": response.content})
+            messages.append({"role": "user", "content": TRUNCATION_NUDGE})
+            continue
+
         submit_block = next((b for b in tool_use_blocks if b.name == "submit_verdict"), None)
         if submit_block is not None:
-            return submit_block.input
+            missing = _missing_verdict_fields(submit_block.input)
+            if not missing:
+                return _strip_tool_markup(submit_block.input)
+            # A call with fields absent (seen once when a long reply lost
+            # its structure) is answered like a tool error: name the gap
+            # and ask again, rather than crash downstream on a KeyError.
+            messages.append({"role": "assistant", "content": response.content})
+            messages.append({"role": "user", "content": [{
+                "type": "tool_result", "tool_use_id": submit_block.id, "is_error": True,
+                "content": f"submit_verdict was missing required fields: {', '.join(missing)}. "
+                           "Call it again with every field.",
+            }]})
+            continue
 
         if not tool_use_blocks:
             raise AgentError(

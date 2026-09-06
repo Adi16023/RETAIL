@@ -54,6 +54,28 @@ def render_comparison(result: dict, digest: dict) -> None:
     if result.get("headline"):
         st.markdown(f"#### {result['headline']}")
 
+    # The action list leads. A director reads this page to know who to call
+    # first; the grouping is the reasoning behind that list, not the point.
+    focus = result.get("where_to_look_first") or []
+    st.markdown("**Where to look first**")
+    if focus:
+        st.dataframe(
+            pd.DataFrame([
+                {
+                    "#": rank,
+                    "Account": label(item["account_id"]),
+                    "Why": item.get("reason", ""),
+                    "Do": item.get("suggested_action", ""),
+                }
+                for rank, item in enumerate(focus, start=1)
+            ]),
+            width="stretch",
+            hide_index=True,
+            column_config={"#": st.column_config.NumberColumn(width="small")},
+        )
+    else:
+        st.success("Nothing in this selection needs attention right now.")
+
     groups = result.get("groups") or []
     if groups:
         st.markdown("**Accounts telling the same story**")
@@ -63,37 +85,21 @@ def render_comparison(result: dict, digest: dict) -> None:
             if g.get("reads_as") in _GROUP_ORDER else len(_GROUP_ORDER),
         )
         for group in ordered:
-            icon, role = _GROUP_STYLE.get(group.get("reads_as"), ("⚪", "muted"))
+            icon, _ = _GROUP_STYLE.get(group.get("reads_as"), ("⚪", "muted"))
             members = group.get("account_ids") or []
-            with st.container(border=True):
-                st.markdown(
-                    f"{icon} **{group.get('story', '')}** "
-                    f"<span style='color:{colors['muted']}'>· {len(members)} account"
-                    f"{'s' if len(members) != 1 else ''}</span>",
-                    unsafe_allow_html=True,
-                )
-                st.caption(group.get("what_they_share", ""))
-                st.markdown("  \n".join(f"· {label(a)}" for a in members))
+            st.markdown(
+                f"{icon} **{group.get('story', '')}** "
+                f"<span style='color:{colors['muted']}'>— {', '.join(label(a) for a in members)}</span>"
+                f"<br><span style='color:{colors['text_secondary']};font-size:0.9rem'>"
+                f"{group.get('what_they_share', '')}</span>",
+                unsafe_allow_html=True,
+            )
 
     standouts = result.get("standouts") or []
     if standouts:
-        st.markdown("**The ones that break the pattern**")
+        st.markdown("**Breaks the pattern**")
         for item in standouts:
-            st.info(f"**{label(item['account_id'])}** — {item['why_it_stands_out']}")
-
-    focus = result.get("where_to_look_first") or []
-    st.markdown("**Where to look first**")
-    if focus:
-        for rank, item in enumerate(focus, start=1):
-            with st.container(border=True):
-                st.markdown(f"**{rank}. {label(item['account_id'])}**")
-                st.write(item.get("reason", ""))
-                st.caption(f"Suggested: {item.get('suggested_action', '')}")
-    else:
-        st.success(
-            "Nothing in this selection needs attention right now — no account here is "
-            "losing value in a way that calls for a conversation."
-        )
+            st.markdown(f"- **{label(item['account_id'])}** — {item['why_it_stands_out']}")
 
     per_account = result.get("per_account") or []
     if per_account:
@@ -108,6 +114,6 @@ def render_comparison(result: dict, digest: dict) -> None:
             )
 
     st.caption(
-        "Read from the same dated findings as the single-account view above — no new figures "
-        "were computed for this comparison, and the accounts' own verdicts are unchanged by it."
+        "Read from each account's own findings — no new figures were computed, and the "
+        "accounts' verdicts are unchanged."
     )

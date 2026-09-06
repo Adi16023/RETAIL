@@ -103,15 +103,12 @@ PAGES = [
         "label": "Detect",
         "title": "What this account has been doing",
         "caption": (
-            "Every order this account has placed, rolled up month by month. The strip below is a "
-            "quick read across the six things that can quietly go wrong — how much they spend, what "
-            "it earns you, how hard you are discounting, what they buy, and how they order. A "
-            "problem usually shows up in one of these long before it shows up in the topline."
+            "Every order, month by month, across the six things that can quietly go wrong: "
+            "spend, margin, discounting, what they buy, and how they order."
         ),
         "list_title": "Which accounts need a look?",
         "list_caption": (
-            "Every account in this file, with the same figures the analysis uses. Search and "
-            "filter here — the rows are already computed. Click a row to open the month-by-month view."
+            "Every account in this file, with the figures the analysis uses. Click a row to open it."
         ),
     },
     {
@@ -121,37 +118,33 @@ PAGES = [
         "label": "Investigate",
         "title": "Is anything actually going wrong?",
         "caption": (
-            "An AI analyst reads exactly the figures on Detect and gives you a straight "
-            "call: real revenue leakage, a temporary dip, or nothing to worry about — and it will "
-            "say so plainly when the evidence is too thin to decide either way. Every number it "
-            "quotes comes from the analysis, so you can check its reasoning rather than take it on "
-            "trust."
+            "A straight call from the AI — leakage, a temporary dip, healthy, or too thin to "
+            "decide — with the figures behind it and what to do."
         ),
     },
-    {
-        "key": "score",
-        "icon": ":material/fact_check:",
-        "number": 3,
-        "label": "Attribute",
-        "title": "How much should you trust that verdict?",
-        "caption": (
-            "For this demo set, the right answer for every account was written down in advance and "
-            "kept away from the agent. Comparing the two shows you how reliable the verdict is — "
-            "which is what tells you how much weight to give it on a real account, where nobody "
-            "knows the answer yet."
-        ),
-    },
+    # Attribute — scores the verdict against the workbook's Answer Key. It is
+    # a validation surface, not something a manager uses, so it is hidden for
+    # now. `render_score_page` stays; restore this entry (and the "score"
+    # branch at the bottom of the file) to bring it back.
+    # {
+    #     "key": "score",
+    #     "icon": ":material/fact_check:",
+    #     "number": 3,
+    #     "label": "Attribute",
+    #     "title": "How much should you trust that verdict?",
+    #     "caption": (
+    #         "The right answer for each demo account was written down in advance and kept away "
+    #         "from the AI. This compares the two."
+    #     ),
+    # },
     {
         "key": "compare",
         "icon": ":material/compare_arrows:",
-        "number": 4,
+        "number": 3,
         "label": "Prioritise",
         "title": "How do these accounts compare?",
         "caption": (
-            "Read several accounts side by side and see which of them are living the same story — "
-            "who is being discounted harder, who is quietly trading down, who is simply growing. "
-            "It reuses the findings already computed for each account, so nothing new is measured "
-            "here; the AI only groups and explains them in business terms."
+            "Several accounts side by side: who to call first, and which are living the same story."
         ),
     },
 ]
@@ -265,11 +258,7 @@ def render_pdf_download(report: dict) -> None:
     blank the page mid-demo.
     """
     st.markdown("**Take it away as a PDF**")
-    st.caption(
-        "The verdict, the money, what changed and when, and what to do — about two "
-        "pages, written for the account owner. Tables only; nothing in it that is not "
-        "on this page."
-    )
+    st.caption("A two-page brief for the account owner — nothing in it that is not on this page.")
 
     try:
         with st.spinner("Building the PDF…"):
@@ -415,10 +404,7 @@ def render_intervention(report: dict, fingerprint: str, account_id: str,
         )
     with note:
         st.write("")
-        st.caption(
-            "The AI weighs the options above and tells you which one to take, what it will be "
-            "worth, and exactly what to do — you do not have to work any of it out."
-        )
+        st.caption("The AI picks one of the options above, says what it is worth, and lists the steps.")
 
     if decision is None and draft_clicked:
         with st.spinner("Drafting the recommendation…"):
@@ -597,7 +583,9 @@ def cached_comparison_digest(df: pd.DataFrame, account_ids: tuple[str, ...]) -> 
 
 # --- Home sidebar + data ---------------------------------------------------
 
-if "home_page" not in st.session_state:
+if st.session_state.get("home_page") not in {p["key"] for p in PAGES}:
+    # Also catches a browser session still pointing at a page that has since
+    # been hidden, which would otherwise fail the page_spec lookup below.
     st.session_state["home_page"] = "data"
 if "model_choice" not in st.session_state:
     st.session_state["model_choice"] = next(iter(MODEL_CHOICES))
@@ -947,7 +935,7 @@ if current_page == "data":
     render_data_page()
 elif current_page == "verdict":
     render_verdict_page()
-elif current_page == "score":
-    render_score_page()
+# elif current_page == "score":
+#     render_score_page()
 else:
     render_compare_page()

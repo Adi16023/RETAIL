@@ -32,6 +32,32 @@ def a_verdict(**overrides):
     return v
 
 
+def test_tool_markup_leaked_into_a_string_field_is_stripped():
+    """Seen on 2 of 18 live Sonnet verdicts: the model closed the narrative
+    in its own tool syntax and wrote the next parameter after it, all inside
+    the string. The text before the tag is the narrative and is kept
+    exactly; everything from the tag on is not."""
+    leaked = a_verdict(
+        narrative="This account looks healthy overall: margin only slipped from 28.68% to 28.35%."
+                  '</narrative>\n<parameter name="recommended_actions">[]',
+        cited_facts=["Revenue is ₹207,204 a month versus a ₹216,359 baseline.</cited_facts>"],
+    )
+    client = ScriptedClient([
+        message([tool_use_block("submit_verdict", leaked, "toolu_a")], stop_reason="tool_use"),
+    ])
+    df, _ = ingest(str(MERIDIAN_CSV))
+    result = investigate(client, df, DEFECTED_ACCOUNT, build_evidence_pack(df, DEFECTED_ACCOUNT))
+
+    assert result["narrative"] == (
+        "This account looks healthy overall: margin only slipped from 28.68% to 28.35%."
+    )
+    assert result["cited_facts"] == ["Revenue is ₹207,204 a month versus a ₹216,359 baseline."]
+    # a clean verdict passes through untouched, including its < and > free prose
+    assert {k: v for k, v in result.items() if k not in ("narrative", "cited_facts")} == {
+        k: v for k, v in leaked.items() if k not in ("narrative", "cited_facts")
+    }
+
+
 def test_happy_path_one_drilldown_then_submit():
     verdict = a_verdict()
     client = ScriptedClient([
@@ -88,6 +114,66 @@ def test_raises_when_model_stops_without_submitting():
     pack = build_evidence_pack(df, DEFECTED_ACCOUNT)
     with pytest.raises(AgentError, match="without calling submit_verdict"):
         investigate(client, df, DEFECTED_ACCOUNT, pack)
+
+
+def test_reply_cut_off_by_output_limit_is_nudged_to_submit():
+    """A reply that hits max_tokens with no tool call is not a failed
+    verdict: the truncated prose goes back to the model with a request for
+    the submit call. The output ceiling cannot simply be raised — Groq
+    bills the requested ceiling against its per-minute cap."""
+    from pipeline.agent import TRUNCATION_NUDGE
+
+    client = ScriptedClient([
+        message([text_block("Let me walk through every dimension in detail...")],
+                stop_reason="max_tokens"),
+        message([tool_use_block("submit_verdict", a_verdict(), "toolu_s")], stop_reason="tool_use"),
+    ])
+    df, _ = ingest(str(MERIDIAN_CSV))
+    pack = build_evidence_pack(df, DEFECTED_ACCOUNT)
+    assert investigate(client, df, DEFECTED_ACCOUNT, pack) == a_verdict()
+    assert client.call_count == 2
+
+    second_call_messages = client.calls[1]["messages"]
+    assert second_call_messages[-2]["role"] == "assistant"
+    assert second_call_messages[-1] == {"role": "user", "content": TRUNCATION_NUDGE}
+
+
+def test_submit_call_cut_off_by_output_limit_is_not_accepted():
+    """A submit_verdict whose input was truncated mid-way is a wrong
+    answer, not a verdict. It is discarded (it cannot be replayed without
+    a tool_result) and the model is asked to call again."""
+    from pipeline.agent import TRUNCATION_NUDGE
+
+    partial = {"verdict": "leakage_detected", "confidence": "high"}
+    client = ScriptedClient([
+        message([tool_use_block("submit_verdict", partial, "toolu_cut")], stop_reason="max_tokens"),
+        message([tool_use_block("submit_verdict", a_verdict(), "toolu_ok")], stop_reason="tool_use"),
+    ])
+    df, _ = ingest(str(MERIDIAN_CSV))
+    pack = build_evidence_pack(df, DEFECTED_ACCOUNT)
+    assert investigate(client, df, DEFECTED_ACCOUNT, pack) == a_verdict()
+
+    second_call_messages = client.calls[1]["messages"]
+    assert second_call_messages[-1] == {"role": "user", "content": TRUNCATION_NUDGE}
+    assert all(m["role"] == "user" for m in second_call_messages)
+
+
+def test_submit_call_missing_fields_is_sent_back_as_a_tool_error():
+    """Seen once live: a long reply lost its structure and the call came
+    back without a narrative. That must be answered, not crashed on."""
+    incomplete = {k: v for k, v in a_verdict().items() if k != "narrative"}
+    client = ScriptedClient([
+        message([tool_use_block("submit_verdict", incomplete, "toolu_bad")], stop_reason="tool_use"),
+        message([tool_use_block("submit_verdict", a_verdict(), "toolu_ok")], stop_reason="tool_use"),
+    ])
+    df, _ = ingest(str(MERIDIAN_CSV))
+    pack = build_evidence_pack(df, DEFECTED_ACCOUNT)
+    assert investigate(client, df, DEFECTED_ACCOUNT, pack) == a_verdict()
+
+    tool_result = client.calls[1]["messages"][-1]["content"][0]
+    assert tool_result["tool_use_id"] == "toolu_bad"
+    assert tool_result["is_error"] is True
+    assert "narrative" in tool_result["content"]
 
 
 def test_raises_when_max_iterations_exceeded():

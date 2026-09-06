@@ -115,7 +115,7 @@ def render_options(options: list[dict], colors: dict) -> list[dict]:
         })
 
     st.dataframe(
-        pd.DataFrame(rows), use_container_width=True, hide_index=True,
+        pd.DataFrame(rows), width="stretch", hide_index=True,
         column_config={heading: st.column_config.TextColumn(help=help_text),
                        "Fixes it?": st.column_config.TextColumn(
                            help="Whether the account still reads as leaking afterwards, on the "
@@ -133,8 +133,8 @@ def render_options(options: list[dict], colors: dict) -> list[dict]:
             f"{_money(first['value_lost_so_far'])} so far."
         )
     st.caption(
-        "Nothing here predicts what the customer will do. It prices what each move would be "
-        "worth if it landed, so the choice below can be made on numbers rather than instinct."
+        "Nothing here predicts what the customer will do — it prices what each move would be "
+        "worth if it landed."
     )
     return options
 
@@ -149,9 +149,7 @@ def render_early_warning(report: dict) -> None:
     """
     st.info(
         "**Nothing has been lost yet — which is what makes this cheap to act on.** This account "
-        "is buying in a different shape rather than buying less, so there is no recovery to "
-        "price. The play below is a judgement about where this is heading, not a claim about "
-        "money already gone."
+        "is buying in a different shape rather than buying less, so there is no recovery to price."
     )
 
 
@@ -174,65 +172,46 @@ def render_decision(decision: dict, colors: dict) -> None:
     if decision.get("expected_result"):
         st.markdown(f"**What this gets you** — {decision['expected_result']}")
 
-    # The steps come FIRST and outside the tabs. This panel asks "what should
-    # we do about it?", and an answer that leads with rationale and hides the
-    # work behind a tab label leaves the reader still asking the question.
+    restores = decision.get("restores_account_to_healthy")
+    left_over = decision.get("what_is_left_over")
+    if restores is True:
+        st.success("**Returns the account to healthy.**")
+    elif restores is False and left_over:
+        # Information, not a warning: taking part of the value back is a
+        # legitimate call, and flagging it as a shortfall would push every
+        # recommendation toward a maximum nobody would actually execute.
+        st.info(f"**Recovers part of it.** {left_over}")
+
+    # The steps come FIRST. This panel asks "what should we do about it?",
+    # and an answer that leads with rationale leaves the reader still asking.
     steps = decision.get("what_to_do") or []
     if steps:
         st.markdown("**Do this**")
         for number, step in enumerate(steps, start=1):
             st.markdown(f"{number}. {step}")
-        st.write("")
 
-    with st.expander("Why this, and not more or less"):
-        st.markdown(decision.get("rationale", ""))
-        left, right = st.columns(2)
-        with left:
-            st.markdown("**Why not push harder**")
-            st.caption(decision.get("why_not_more_aggressive", "—"))
-        with right:
-            st.markdown("**Why not settle for less**")
-            st.caption(decision.get("why_not_less_aggressive", "—"))
-
-    restores = decision.get("restores_account_to_healthy")
-    left_over = decision.get("what_is_left_over")
-    if restores is True:
-        st.success("**This returns the account to healthy.**")
-    elif restores is False and left_over:
-        # Information, not a warning: taking part of the value back is a
-        # legitimate call, and flagging it as a shortfall would push every
-        # recommendation toward a maximum nobody would actually execute.
-        st.info(f"**Recovers part of it:** {left_over}")
-
-    talking, checks, follow_up = st.tabs(
-        ["What to say", "Check first", "How we'll know it worked"]
-    )
-    with talking:
-        for point in decision.get("talking_points") or []:
-            st.markdown(f"- {point}")
-        if decision.get("downside_if_wrong"):
-            st.warning(f"**If this goes wrong:** {decision['downside_if_wrong']}")
-    with checks:
-        st.caption(
-            "Assumptions the transaction data cannot settle. Verify these before acting, "
-            "not afterwards."
-        )
-        for item in decision.get("check_before_acting") or []:
-            st.markdown(f"- {item}")
-    with follow_up:
-        for item in decision.get("how_we_will_know_it_worked") or []:
-            st.markdown(f"- {item}")
-        months = decision.get("review_in_months")
-        if months:
-            st.caption(f"Review in **{months} months**.")
-
-    owner, timing = st.columns(2)
+    owner, timing, review = st.columns(3)
     owner.markdown(f"**Owner**  \n{decision.get('owner', '—')}")
     timing.markdown(f"**Timing**  \n{decision.get('timing', '—')}")
+    months = decision.get("review_in_months")
+    review.markdown(f"**Review**  \n{f'in {months} months' if months else '—'}")
+
+    with st.expander("Why this option, and not more or less"):
+        if decision.get("rationale"):
+            st.markdown(decision["rationale"])
+        left, right = st.columns(2)
+        with left:
+            st.markdown("**Not more, because**")
+            st.caption(decision.get("why_not_more_aggressive", "—"))
+        with right:
+            st.markdown("**Not less, because**")
+            st.caption(decision.get("why_not_less_aggressive", "—"))
+        if decision.get("downside_if_wrong"):
+            st.caption(f"**If this goes wrong:** {decision['downside_if_wrong']}")
 
     st.caption(
-        "Every figure quoted above was computed by the deterministic stages; the AI chose "
-        "among the priced options and made the case for one. It produced no number itself."
+        "Every figure above was computed by the deterministic stages; the AI chose among the "
+        "priced options and made the case for one."
     )
 
 

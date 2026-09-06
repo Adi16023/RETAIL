@@ -25,6 +25,14 @@ from types import SimpleNamespace
 
 DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
 
+# Groq bills the REQUESTED output ceiling against its free-tier limit of
+# 8,000 tokens per minute, and one evidence pack is already most of that.
+# Call sites ask for what an Anthropic model needs (Claude 5-family
+# thinking is charged to the same ceiling, so agent.py asks for 16,000);
+# this shim clamps the request to what Groq will accept. 4,096 is the
+# value every 18/18 live run was scored at.
+GROQ_MAX_OUTPUT_TOKENS = 4096
+
 
 def _anthropic_tool_to_groq(tool: dict) -> dict:
     return {
@@ -121,7 +129,7 @@ class _GroqMessages:
 
         response = self._groq_client.chat.completions.create(
             model=groq_model,
-            max_tokens=max_tokens,
+            max_tokens=min(max_tokens, GROQ_MAX_OUTPUT_TOKENS),
             messages=_anthropic_messages_to_groq(system, messages),
             tools=[_anthropic_tool_to_groq(t) for t in tools],
             tool_choice="auto",

@@ -15,9 +15,15 @@ from urllib.parse import quote
 import pandas as pd
 import streamlit as st
 
+from ml.predict import pack_probabilities
 from pipeline.evidence import build_evidence_pack
 
-from .palette import STATUS_MEANING, active, status_style
+from .palette import COLORS, STATUS_MEANING, active, status_style
+
+_AGENT_BAR = {"High": 99, "Medium": 66, "Low": 33}
+
+# Banner wording: the classifier is never shown as 100%.
+_OUTCOME_PROBABILITY = {"FLAG": "p_flag", "NO_FLAG": "p_no_flag", "DEFER": "p_defer"}
 
 # Detector statuses whose role is a real problem, not a warning or an all-clear.
 _CONCERN_ROLES = frozenset({"critical", "serious"})
@@ -28,6 +34,8 @@ DISPLAY_COLUMNS = [
     ("account_name", "Name"),
     ("region", "Region"),
     ("revenue_label", "Revenue"),
+    ("agent_confidence", "AI agent confidence"),
+    ("model_confidence", "Statistical model confidence"),
     ("account_manager", "Manager"),
     ("months", "Months"),
     ("orders", "Orders"),
@@ -65,6 +73,71 @@ def _status_label(status: str | None) -> str:
 def is_concern(status: str | None) -> bool:
     role, _, _ = STATUS_MEANING.get(status or "", ("warning", "", ""))
     return role in _CONCERN_ROLES
+
+
+def _probability_label(p) -> str | None:
+    if p is None or (isinstance(p, float) and pd.isna(p)):
+        return None
+    return f"{min(round(float(p) * 100), 99):.0f}%"
+
+
+def _agent_confidence_label(report: dict | None) -> str | None:
+    if not report:
+        return None
+    value = report.get("confidence")
+    if not value or (isinstance(value, float) and pd.isna(value)):
+        return None
+    return str(value).capitalize()
+
+
+def _model_confidence_label(
+    opinion: dict | None,
+    *,
+    agent_outcome: str | None = None,
+    probabilities: dict | None = None,
+) -> str | None:
+    """Same number the verdict banner shows, when the AI outcome is known."""
+    source = opinion if (opinion or {}).get("available") else None
+    if source and agent_outcome:
+        labelled = _probability_label(
+            source.get(_OUTCOME_PROBABILITY.get(agent_outcome, ""))
+        )
+        if labelled:
+            return labelled
+    if source:
+        values = [
+            source.get(key) for key in _OUTCOME_PROBABILITY.values()
+            if source.get(key) is not None
+        ]
+        if values:
+            return _probability_label(max(values))
+    if probabilities:
+        return _probability_label(max(probabilities.values()))
+    return None
+
+
+def apply_investigation_cache(
+    catalogue: pd.DataFrame,
+    reports: dict[str, dict | None],
+) -> pd.DataFrame:
+    """Join cached verdicts. Search and filters still only slice the frame."""
+    frame = catalogue.copy()
+    agent = []
+    model = []
+    for account_id, current in zip(frame["account_id"], frame["model_confidence"]):
+        report = reports.get(str(account_id))
+        agent.append(_agent_confidence_label(report))
+        if not report:
+            model.append(current)
+            continue
+        labelled = _model_confidence_label(
+            report.get("model_opinion"),
+            agent_outcome=(report.get("model_agreement") or {}).get("agent_outcome"),
+        )
+        model.append(labelled if labelled is not None else current)
+    frame["agent_confidence"] = agent
+    frame["model_confidence"] = model
+    return frame
 
 
 def account_row(pack: dict) -> dict:
@@ -119,6 +192,14 @@ def account_row(pack: dict) -> dict:
         "category_label": category_label,
         "history_label": history_label,
         "needs_attention": needs_attention,
+        "agent_confidence": None,
+        "model_confidence": _model_confidence_label(
+            pack.get("model_opinion"),
+            probabilities=(
+                None if (pack.get("model_opinion") or {}).get("available")
+                else pack_probabilities(pack)
+            ),
+        ),
     }
 
 
@@ -240,6 +321,56 @@ def _revenue_status_html(row) -> str:
     )
 
 
+def _bar_color(pct: int) -> str:
+    if pct >= 80:
+        return COLORS["good"]
+    if pct >= 50:
+        return COLORS["warning"]
+    return COLORS["serious"]
+
+
+def _bar_html(pct: int, label: str) -> str:
+    return (
+        f'<span class="rl-book-bar" style="--sig:{escape(_bar_color(pct), quote=True)};--pct:{int(pct)}%">'
+        f'<span class="rl-book-bar-track"><span class="rl-book-bar-fill"></span></span>'
+        f'<span class="rl-book-bar-value">{escape(label)}</span></span>'
+    )
+
+
+def _percent_parts(value) -> tuple[int, str] | None:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+    text = str(value).strip()
+    if not text or text == "—":
+        return None
+    number = text[:-1] if text.endswith("%") else text
+    try:
+        pct = min(int(round(float(number))), 99)
+    except (TypeError, ValueError):
+        return None
+    return pct, f"{pct}%"
+
+
+def _percent_bar_html(value) -> str:
+    parts = _percent_parts(value)
+    if parts is None:
+        return escape("—")
+    pct, label = parts
+    return _bar_html(pct, label)
+
+
+def _agent_bar_html(value) -> str:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return escape("—")
+    label = str(value).strip()
+    if not label or label == "—":
+        return escape("—")
+    pct = _AGENT_BAR.get(label)
+    if pct is None:
+        return escape(label)
+    return _bar_html(pct, label)
+
+
 def _opened_account(catalogue: pd.DataFrame) -> str | None:
     """A row click lands as `?account=ACC-101`. Consume it once."""
     requested = st.query_params.get("account")
@@ -266,11 +397,14 @@ def _book_table_html(catalogue: pd.DataFrame) -> str:
         for source, _label in DISPLAY_COLUMNS:
             if source not in catalogue.columns:
                 continue
-            inner = (
-                _revenue_status_html(row)
-                if source == "revenue_label"
-                else escape(_cell_text(source, row[source]))
-            )
+            if source == "revenue_label":
+                inner = _revenue_status_html(row)
+            elif source == "model_confidence":
+                inner = _percent_bar_html(row[source])
+            elif source == "agent_confidence":
+                inner = _agent_bar_html(row[source])
+            else:
+                inner = escape(_cell_text(source, row[source]))
             cells.append(
                 f'<td><a class="rl-book-hit" href="{escape(href, quote=True)}">{inner}</a></td>'
             )

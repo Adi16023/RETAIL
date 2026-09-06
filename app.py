@@ -57,7 +57,7 @@ from pipeline.prioritize import prioritize
 from pipeline.report import assemble_report
 from pipeline.timeline import PRESENCE_ONLY_DIMENSIONS, build_timeline
 from ui import cache
-from ui.accounts import build_account_catalogue, render_account_book
+from ui.accounts import apply_investigation_cache, build_account_catalogue, render_account_book
 from ui.compare import render_comparison
 from ui.decide import render_decision, render_early_warning, render_no_lever, render_options
 from ui.palette import active
@@ -648,6 +648,8 @@ choice_label = st.session_state["model_choice"]
 model_id = MODEL_CHOICES[choice_label]["model"]
 fingerprint = cached_account_fingerprint(df, account_id) if account_id else None
 report = cache.load(fingerprint, account_id, model_id) if account_id else None
+if report is not None:
+    st.session_state.setdefault("investigation_reports", {})[account_id] = report
 
 # Packs are only built for pages that show them. Attribute / Prioritise read
 # the finished report; hashing and assembling the pack on those clicks was
@@ -707,8 +709,22 @@ def _need_an_account() -> None:
 def render_data_page() -> None:
     if account_id is None:
         theme.page(page_spec["list_title"], page_spec["list_caption"])
+        book = cached_account_catalogue(df)
+        remembered = st.session_state.setdefault("investigation_reports", {})
+        catalogue = apply_investigation_cache(
+            book,
+            {
+                str(aid): (
+                    remembered.get(str(aid))
+                    or cache.load_for_account(
+                        str(aid), cached_account_fingerprint(df, aid), model_id,
+                    )
+                )
+                for aid in book["account_id"]
+            },
+        )
         opened = render_account_book(
-            cached_account_catalogue(df),
+            catalogue,
             trailing=_file_info_button,
         )
         if opened:
@@ -765,6 +781,7 @@ def render_verdict_page() -> None:
             st.info("The evidence on Detect is unaffected — only the model step failed.")
         else:
             cache.save(fingerprint, account_id, model_id, fresh)
+            st.session_state.setdefault("investigation_reports", {})[account_id] = fresh
             st.rerun()
 
     if report:

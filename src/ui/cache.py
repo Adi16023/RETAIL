@@ -66,6 +66,35 @@ def load(fingerprint: str, account_id: str, model: str) -> dict | None:
         return None
 
 
+def load_for_account(
+    account_id: str,
+    fingerprint: str | None = None,
+    model: str | None = None,
+) -> dict | None:
+    """Exact key first, then the newest file for this account.
+
+    The book has to survive a model switch or a fingerprint that drifted
+    after a library upgrade — those must not blank the confidence column.
+    """
+    if fingerprint and model:
+        hit = load(fingerprint, account_id, model)
+        if hit is not None:
+            return hit
+    if not CACHE_DIR.exists():
+        return None
+    matches = sorted(
+        CACHE_DIR.glob(f"{account_id}_*.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    for path in matches:
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+    return None
+
+
 def save(fingerprint: str, account_id: str, model: str, report: dict) -> None:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     _path(fingerprint, account_id, model).write_text(

@@ -976,6 +976,32 @@ hr, [data-testid="stDivider"] {{
   font-size: 0.72rem;
   line-height: 1;
 }}
+.rl-book-bar {{
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 7.25rem;
+}}
+.rl-book-bar-track {{
+  display: block;
+  width: 4.25rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: #e5e7eb;
+  overflow: hidden;
+}}
+.rl-book-bar-fill {{
+  display: block;
+  width: var(--pct);
+  height: 100%;
+  border-radius: 999px;
+  background: var(--sig);
+}}
+.rl-book-bar-value {{
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  color: var(--rl-ink);
+}}
 
 [class*="st-key-account_pagination"] {{
   margin-top: 1rem !important;

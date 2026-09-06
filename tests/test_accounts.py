@@ -18,12 +18,18 @@ from pipeline.ingest import ingest
 from ui.accounts import (
     DISPLAY_COLUMNS,
     account_row,
+    apply_investigation_cache,
     build_account_catalogue,
     filter_catalogue,
     page_window,
     paginate_catalogue,
+    _agent_confidence_label,
+    _agent_bar_html,
     _book_table_html,
     _cell_text,
+    _model_confidence_label,
+    _percent_bar_html,
+    _probability_label,
 )
 from ui.palette import COLORS, status_style
 
@@ -165,3 +171,47 @@ def test_page_window_stays_short():
     assert page_window(1, 12) == [1, 2, 3, 4, 5]
     assert page_window(12, 12) == [8, 9, 10, 11, 12]
     assert page_window(6, 12) == [4, 5, 6, 7, 8]
+
+
+def test_confidence_labels_match_the_verdict_banner():
+    assert _probability_label(0.997) == "99%"
+    assert _probability_label(0.49) == "49%"
+    assert _agent_confidence_label({"confidence": "high"}) == "High"
+    assert _agent_confidence_label(None) is None
+    assert _model_confidence_label(
+        {"available": True, "p_flag": 0.99, "p_no_flag": 0.01, "p_defer": 0.0},
+        agent_outcome="FLAG",
+    ) == "99%"
+
+
+def test_investigation_cache_fills_agent_confidence_only(catalogue):
+    reports = {
+        FLAGSHIP_LEAK: {
+            "confidence": "high",
+            "model_opinion": {
+                "available": True, "p_flag": 0.997, "p_no_flag": 0.002, "p_defer": 0.001,
+            },
+            "model_agreement": {"agent_outcome": "FLAG"},
+        },
+    }
+    framed = apply_investigation_cache(catalogue, reports)
+    row = framed.set_index("account_id").loc[FLAGSHIP_LEAK]
+    assert row["agent_confidence"] == "High"
+    assert row["model_confidence"] == "99%"
+    others = framed[framed["account_id"] != FLAGSHIP_LEAK]
+    assert others["agent_confidence"].isna().all()
+
+
+def test_book_table_shows_confidence_columns(catalogue):
+    framed = apply_investigation_cache(
+        catalogue.head(1),
+        {FLAGSHIP_LEAK: {"confidence": "high"}},
+    )
+    html = _book_table_html(framed)
+    assert "AI agent confidence" in html
+    assert "Statistical model confidence" in html
+    assert "High" in html
+    assert "rl-book-bar" in html
+    assert "High" in _agent_bar_html("High")
+    assert "99%" in _percent_bar_html("99%")
+    assert "--pct:99%" in _percent_bar_html("99%")

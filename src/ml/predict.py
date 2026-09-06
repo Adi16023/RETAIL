@@ -152,6 +152,25 @@ def _probabilities(bundle: dict, row: pd.DataFrame) -> dict[str, float]:
     return {str(c): float(p) for c, p in zip(bundle["model"].classes_, proba)}
 
 
+def pack_probabilities(pack: dict, bundle: dict | None = None) -> dict[str, float] | None:
+    """P(FLAG) / P(NO_FLAG) / P(DEFER) only. No driver pass, never raises.
+
+    The account book needs a confidence number, not the explanation the
+    prompt uses, and scoring 18 accounts with drivers would redo ~60
+    predictions each.
+    """
+    if not classifier_enabled():
+        return None
+    bundle = bundle if bundle is not None else load_model()
+    if bundle is None:
+        return None
+    try:
+        row = pd.DataFrame([extract_features(pack)])[FEATURE_NAMES]
+        return _probabilities(bundle, row)
+    except Exception:
+        return None
+
+
 def _drivers(bundle: dict, row: pd.DataFrame, leaning: str, base: float) -> list[dict]:
     """Which known facts the leading probability rests on, by how much it
     moves when each one is hidden from the model."""

@@ -27,7 +27,8 @@ from ui.accounts import (
     _agent_bar_html,
     _book_table_html,
     _cell_text,
-    _model_confidence_label,
+    _leak_probability_html,
+    _leak_probability_label,
     _percent_bar_html,
     _probability_label,
 )
@@ -173,18 +174,35 @@ def test_page_window_stays_short():
     assert page_window(6, 12) == [4, 5, 6, 7, 8]
 
 
-def test_confidence_labels_match_the_verdict_banner():
+def test_leak_probability_always_reads_the_same_way():
+    """The column is P(leakage) for every row, whatever the AI concluded —
+    a healthy account with a 37% leak probability shows 37%, not the 63%
+    the classifier gave the healthy call."""
     assert _probability_label(0.997) == "99%"
     assert _probability_label(0.49) == "49%"
     assert _agent_confidence_label({"confidence": "high"}) == "High"
     assert _agent_confidence_label(None) is None
-    assert _model_confidence_label(
-        {"available": True, "p_flag": 0.99, "p_no_flag": 0.01, "p_defer": 0.0},
-        agent_outcome="FLAG",
-    ) == "99%"
+    leak = {"available": True, "p_flag": 0.99, "p_no_flag": 0.01, "p_defer": 0.0}
+    healthy = {"available": True, "p_flag": 0.37, "p_no_flag": 0.63, "p_defer": 0.0}
+    assert _leak_probability_label(leak) == "99%"
+    assert _leak_probability_label(healthy) == "37%"
+    # The raw probability shape (an account not yet investigated) reads the same.
+    assert _leak_probability_label(probabilities={"FLAG": 0.37, "NO_FLAG": 0.63, "DEFER": 0.0}) == "37%"
+    # Not enough history: a dash, never a reassuring low number.
+    thin = {"available": True, "p_flag": 0.01, "p_no_flag": 0.02, "p_defer": 0.97}
+    assert _leak_probability_label(thin) == "—"
+    assert _leak_probability_label(leak, deferred=True) == "—"
+    assert _leak_probability_label({"available": False}) is None
+    assert "Not enough history" in _leak_probability_html("—")
+    assert "rl-book-bar" in _leak_probability_html("37%")
+    # The colour ramp runs the opposite way from a confidence bar: a high
+    # leak probability is the bad end.
+    assert COLORS["critical"] in _leak_probability_html("99%")
+    assert COLORS["warning"] in _leak_probability_html("37%")
+    assert COLORS["good"] in _leak_probability_html("2%")
 
 
-def test_investigation_cache_fills_agent_confidence_only(catalogue):
+def test_investigation_cache_fills_agent_confidence_and_keeps_leak_probability(catalogue):
     reports = {
         FLAGSHIP_LEAK: {
             "confidence": "high",
@@ -193,13 +211,17 @@ def test_investigation_cache_fills_agent_confidence_only(catalogue):
             },
             "model_agreement": {"agent_outcome": "FLAG"},
         },
+        THIN_HISTORY: {"confidence": "low", "verdict": "insufficient_data", "defer": True},
     }
     framed = apply_investigation_cache(catalogue, reports)
-    row = framed.set_index("account_id").loc[FLAGSHIP_LEAK]
-    assert row["agent_confidence"] == "High"
-    assert row["model_confidence"] == "99%"
-    others = framed[framed["account_id"] != FLAGSHIP_LEAK]
+    by_id = framed.set_index("account_id")
+    assert by_id.loc[FLAGSHIP_LEAK, "agent_confidence"] == "High"
+    assert by_id.loc[FLAGSHIP_LEAK, "leak_probability"] == "99%"
+    assert by_id.loc[THIN_HISTORY, "leak_probability"] == "—"
+    others = framed[~framed["account_id"].isin([FLAGSHIP_LEAK, THIN_HISTORY])]
     assert others["agent_confidence"].isna().all()
+    # An account without a report keeps the classifier's own P(leakage).
+    assert others["leak_probability"].str.endswith("%").all()
 
 
 def test_book_table_shows_confidence_columns(catalogue):
@@ -208,10 +230,32 @@ def test_book_table_shows_confidence_columns(catalogue):
         {FLAGSHIP_LEAK: {"confidence": "high"}},
     )
     html = _book_table_html(framed)
-    assert "AI agent confidence" in html
-    assert "Statistical model confidence" in html
-    assert "High" in html
+    assert "Probability of leakage" in html
+    assert "AI agent confidence" not in html, "the AI's level is on the verdict banner, not in the book"
     assert "rl-book-bar" in html
+
+
+def test_book_table_shows_identity_signal_verdict_and_confidences_only(catalogue):
+    """The book shows identity, the revenue signal, the AI's call and the
+    two confidences — nothing else. The verdict column reads the cached
+    report, under the "Revenue leakage" header: Detected / Not detected /
+    Deferred / Not analysed."""
+    assert [label for _, label in DISPLAY_COLUMNS] == [
+        "Account", "Name", "Region", "Revenue", "Revenue leakage", "Probability of leakage",
+    ]
+    framed = apply_investigation_cache(catalogue.head(3), {
+        "ACC-101": {"verdict": "leakage_detected", "confidence": "high"},
+        "ACC-102": {"verdict": "healthy", "confidence": "high"},
+    })
+    by_id = framed.set_index("account_id")
+    assert by_id.loc["ACC-101", "verdict_label"] == "Detected"
+    assert by_id.loc["ACC-102", "verdict_label"] == "Not detected"
+    assert by_id.loc["ACC-103", "verdict_label"] == "Not analysed"
+    deferred = apply_investigation_cache(catalogue.head(1), {"ACC-101": {"verdict": "insufficient_data", "defer": True}})
+    assert deferred.loc[0, "verdict_label"] == "Deferred"
+    html = _book_table_html(framed)
+    assert "<th>Revenue leakage</th>" in html and ">Detected<" in html and "Not analysed" in html
+    assert "Months" not in html and "Order shape" not in html and "<th>Manager</th>" not in html
     assert "High" in _agent_bar_html("High")
     assert "99%" in _percent_bar_html("99%")
     assert "--pct:99%" in _percent_bar_html("99%")

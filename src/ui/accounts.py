@@ -22,35 +22,45 @@ from .palette import COLORS, STATUS_MEANING, active, status_style
 
 _AGENT_BAR = {"High": 99, "Medium": 66, "Low": 33}
 
-# Banner wording: the classifier is never shown as 100%.
-_OUTCOME_PROBABILITY = {"FLAG": "p_flag", "NO_FLAG": "p_no_flag", "DEFER": "p_defer"}
+# The book's classifier column answers ONE question for every row: how
+# likely is it that this account is a leak? It always shows P(leakage), never
+# the probability of whatever the AI happened to conclude — the earlier
+# "confidence" reading flipped direction row by row (63% meant "healthy" on
+# one line and "leak" on the next) and was read as a leak score anyway. A
+# thin-history account whose classifier leaning is "defer" shows a dash
+# rather than a low number, so a five-month account never looks safe.
+_LEAK_KEY = "FLAG"
+_DEFER_KEY = "DEFER"
+_NOT_ENOUGH_HISTORY = "Not enough history for the statistical model to judge"
 
 # Detector statuses whose role is a real problem, not a warning or an all-clear.
 _CONCERN_ROLES = frozenset({"critical", "serious"})
 
 # Catalogue field -> the column a manager reads. Order is the table order.
+# Trimmed on Sept 7 at the user's request to the identity, the revenue
+# signal, the AI's call and the two confidences: the manager, the
+# per-dimension figures and labels still live in the frame (search and the
+# filters use them) and on each account's own page, but not in the book.
 DISPLAY_COLUMNS = [
     ("account_id", "Account"),
     ("account_name", "Name"),
     ("region", "Region"),
     ("revenue_label", "Revenue"),
-    ("agent_confidence", "AI agent confidence"),
-    ("model_confidence", "Statistical model confidence"),
-    ("account_manager", "Manager"),
-    ("months", "Months"),
-    ("orders", "Orders"),
-    ("revenue_recent", "Revenue / mo"),
-    ("revenue_change_pct", "Change"),
-    ("margin_recent_pct", "Margin %"),
-    ("discount_recent_pct", "Discount %"),
-    ("high_tier_recent_pct", "High-tier %"),
-    ("margin_label", "Margin"),
-    ("discount_label", "Discount"),
-    ("tier_label", "Value mix"),
-    ("order_label", "Order shape"),
-    ("category_label", "Categories"),
-    ("history_label", "History"),
+    ("verdict_label", "Revenue leakage"),
+    ("leak_probability", "Probability of leakage"),
 ]
+# The AI's own High / Medium / Low still rides in the frame as
+# `agent_confidence` (the verdict banner shows it); dropped from the table
+# on Sept 7 at the user's request.
+
+# The AI's call, as the answer under the "Revenue leakage" header, with a
+# palette role, from a cached report.
+_VERDICT_LABEL = {
+    "leakage_detected": ("Detected", "critical"),
+    "healthy": ("Not detected", "good"),
+    "insufficient_data": ("Not enough evidence", "warning"),
+}
+_NOT_ANALYSED = ("Not analysed", "muted")
 
 SEARCH_COLUMNS = ("account_id", "account_name", "region", "account_manager")
 
@@ -90,30 +100,40 @@ def _agent_confidence_label(report: dict | None) -> str | None:
     return str(value).capitalize()
 
 
-def _model_confidence_label(
-    opinion: dict | None,
+def _outcome_probabilities(opinion: dict | None, probabilities: dict | None) -> dict[str, float]:
+    """P(FLAG) / P(NO_FLAG) / P(DEFER) from either shape the classifier
+    comes in: the pack's `model_opinion` block or a raw probability dict."""
+    if (opinion or {}).get("available"):
+        return {
+            "FLAG": opinion.get("p_flag"), "NO_FLAG": opinion.get("p_no_flag"), "DEFER": opinion.get("p_defer"),
+        }
+    return dict(probabilities or {})
+
+
+def _leak_probability_label(
+    opinion: dict | None = None,
     *,
-    agent_outcome: str | None = None,
     probabilities: dict | None = None,
+    deferred: bool = False,
 ) -> str | None:
-    """Same number the verdict banner shows, when the AI outcome is known."""
-    source = opinion if (opinion or {}).get("available") else None
-    if source and agent_outcome:
-        labelled = _probability_label(
-            source.get(_OUTCOME_PROBABILITY.get(agent_outcome, ""))
-        )
-        if labelled:
-            return labelled
-    if source:
-        values = [
-            source.get(key) for key in _OUTCOME_PROBABILITY.values()
-            if source.get(key) is not None
-        ]
-        if values:
-            return _probability_label(max(values))
-    if probabilities:
-        return _probability_label(max(probabilities.values()))
-    return None
+    """The classifier's P(leakage) as "NN%", capped at 99; None when there
+    is no classifier; "—" when the account is deferred or the classifier's
+    own strongest leaning is "not enough history"."""
+    scores = {k: v for k, v in _outcome_probabilities(opinion, probabilities).items() if v is not None}
+    if not scores:
+        return None
+    if deferred or max(scores, key=scores.get) == _DEFER_KEY:
+        return "—"
+    return _probability_label(scores.get(_LEAK_KEY))
+
+
+def _verdict_label(report: dict | None) -> tuple[str, str]:
+    """(word, palette role) for the AI's call; "Not analysed" without a report."""
+    if not report:
+        return _NOT_ANALYSED
+    if report.get("defer"):
+        return ("Deferred", "warning")
+    return _VERDICT_LABEL.get(report.get("verdict"), (str(report.get("verdict")), "warning"))
 
 
 def apply_investigation_cache(
@@ -123,20 +143,25 @@ def apply_investigation_cache(
     """Join cached verdicts. Search and filters still only slice the frame."""
     frame = catalogue.copy()
     agent = []
-    model = []
-    for account_id, current in zip(frame["account_id"], frame["model_confidence"]):
+    leak = []
+    verdict_words, verdict_roles = [], []
+    for account_id, current in zip(frame["account_id"], frame["leak_probability"]):
         report = reports.get(str(account_id))
         agent.append(_agent_confidence_label(report))
+        word, role = _verdict_label(report)
+        verdict_words.append(word)
+        verdict_roles.append(role)
         if not report:
-            model.append(current)
+            leak.append(current)
             continue
-        labelled = _model_confidence_label(
-            report.get("model_opinion"),
-            agent_outcome=(report.get("model_agreement") or {}).get("agent_outcome"),
-        )
-        model.append(labelled if labelled is not None else current)
+        # The opinion the AI actually saw, when the report carries one; a
+        # deferred verdict shows a dash whatever the classifier said.
+        labelled = _leak_probability_label(report.get("model_opinion"), deferred=bool(report.get("defer")))
+        leak.append(labelled if labelled is not None else ("—" if report.get("defer") else current))
     frame["agent_confidence"] = agent
-    frame["model_confidence"] = model
+    frame["leak_probability"] = leak
+    frame["verdict_label"] = verdict_words
+    frame["verdict_role"] = verdict_roles
     return frame
 
 
@@ -192,8 +217,10 @@ def account_row(pack: dict) -> dict:
         "category_label": category_label,
         "history_label": history_label,
         "needs_attention": needs_attention,
+        "verdict_label": _NOT_ANALYSED[0],
+        "verdict_role": _NOT_ANALYSED[1],
         "agent_confidence": None,
-        "model_confidence": _model_confidence_label(
+        "leak_probability": _leak_probability_label(
             pack.get("model_opinion"),
             probabilities=(
                 None if (pack.get("model_opinion") or {}).get("available")
@@ -321,6 +348,21 @@ def _revenue_status_html(row) -> str:
     )
 
 
+def _verdict_html(row) -> str:
+    """The AI's call as a pill in the palette role, or a plain "Not analysed"."""
+    word = _as_text(row.get("verdict_label")) or _NOT_ANALYSED[0]
+    role = _as_text(row.get("verdict_role")) or _NOT_ANALYSED[1]
+    if role == "muted":
+        return f'<span class="rl-book-muted">{escape(word)}</span>'
+    color = COLORS.get(role, COLORS["warning"])
+    icon = {"critical": "●", "good": "●", "warning": "●"}.get(role, "●")
+    return (
+        f'<span class="rl-book-status" style="--sig:{escape(color, quote=True)}">'
+        f'<span class="rl-book-status-icon" aria-hidden="true">{icon}</span>'
+        f"{escape(word)}</span>"
+    )
+
+
 def _bar_color(pct: int) -> str:
     if pct >= 80:
         return COLORS["good"]
@@ -357,6 +399,32 @@ def _percent_bar_html(value) -> str:
         return escape("—")
     pct, label = parts
     return _bar_html(pct, label)
+
+
+def _leak_color(pct: int) -> str:
+    """The opposite ramp from a confidence bar: a HIGH leak probability is
+    the bad end. 50% and up reads as a leak call, 20-49% as worth a look."""
+    if pct >= 50:
+        return COLORS["critical"]
+    if pct >= 20:
+        return COLORS["warning"]
+    return COLORS["good"]
+
+
+def _leak_probability_html(value) -> str:
+    """P(leakage) as a bar; a dash, with the reason on hover, when the
+    classifier could not judge the account."""
+    if value == "—":
+        return f'<span title="{escape(_NOT_ENOUGH_HISTORY, quote=True)}">—</span>'
+    parts = _percent_parts(value)
+    if parts is None:
+        return escape("—")
+    pct, label = parts
+    return (
+        f'<span class="rl-book-bar" style="--sig:{escape(_leak_color(pct), quote=True)};--pct:{int(pct)}%">'
+        f'<span class="rl-book-bar-track"><span class="rl-book-bar-fill"></span></span>'
+        f'<span class="rl-book-bar-value">{escape(label)}</span></span>'
+    )
 
 
 def _agent_bar_html(value) -> str:
@@ -399,8 +467,10 @@ def _book_table_html(catalogue: pd.DataFrame) -> str:
                 continue
             if source == "revenue_label":
                 inner = _revenue_status_html(row)
-            elif source == "model_confidence":
-                inner = _percent_bar_html(row[source])
+            elif source == "verdict_label":
+                inner = _verdict_html(row)
+            elif source == "leak_probability":
+                inner = _leak_probability_html(row[source])
             elif source == "agent_confidence":
                 inner = _agent_bar_html(row[source])
             else:

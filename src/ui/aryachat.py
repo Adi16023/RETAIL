@@ -379,6 +379,42 @@ def _render_composer(key: str, turn_count: int) -> str | None:
     return None
 
 
+def _stick_thread_to_bottom(nonce: str) -> None:
+    """Scroll the thread to its newest message and keep it there while an
+    answer streams in.
+
+    The thread is a CSS scroll box (theme.py), so a new turn appended below
+    the fold is invisible until the reader scrolls. This runs in the page
+    (st.html executes inline, not in an iframe): jump to the bottom now, then
+    follow growth with a MutationObserver — but only while the reader is
+    already near the bottom, so scrolling up to re-read an earlier answer is
+    not fought. `nonce` must differ between paints or Streamlit keeps the
+    previous element and the script does not run again.
+    """
+    st.html(
+        f"""<script>
+(function() {{
+  /* {nonce} */
+  const panes = document.querySelectorAll('[class*="st-key-arya_thread"]');
+  const el = panes[panes.length - 1];
+  if (!el) return;
+  const stick = function() {{ el.scrollTop = el.scrollHeight; }};
+  stick();
+  requestAnimationFrame(stick);
+  setTimeout(stick, 150);
+  if (el.__rlStick) el.__rlStick.disconnect();
+  const obs = new MutationObserver(function() {{
+    const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (gap < 160) stick();
+  }});
+  obs.observe(el, {{ childList: true, subtree: true, characterData: true }});
+  el.__rlStick = obs;
+}})();
+</script>""",
+        unsafe_allow_javascript=True,
+    )
+
+
 def _queue_question(question: str) -> None:
     """Defer the model call to the next fragment paint so it runs in the thread."""
     text = (question or "").strip()
@@ -418,6 +454,9 @@ def _answer_question(
     chatstore.save_chat(chat)
     with st.chat_message("user"):
         st.markdown(question)
+    # Before the model is called, so the reader is taken to the question they
+    # just sent and follows the answer as it streams.
+    _stick_thread_to_bottom(f"live-{len(chat['turns'])}")
 
     with st.chat_message("assistant"):
         activity = st.container()
@@ -544,9 +583,18 @@ def _arya_fragment(
                     )
 
             with right:
-                # Separate keys so CSS can pin the composer when chatting and
-                # keep it centered with the hero when idle.
-                with st.container(key="arya_right_idle" if idle else "arya_right_chat"):
+                # Dock: separate keys so CSS can pin the composer when chatting
+                # and keep it centered with the hero when idle. Fullscreen has
+                # one key (arya_chatpane), idle or chatting: theme.py pins the
+                # thread and the chatbar to the viewport there, so the thread
+                # scrolls and the bar sits at the bottom in both states.
+                if fullscreen:
+                    pane_key = "arya_chatpane"
+                elif idle:
+                    pane_key = "arya_right_idle"
+                else:
+                    pane_key = "arya_right_chat"
+                with st.container(key=pane_key):
                     if not fullscreen:
                         st.markdown(
                             '<p class="rl-arya-widget-title">Arya</p>',
@@ -588,6 +636,9 @@ def _arya_fragment(
                                 tapped = _render_chips(key, chat)
                                 if tapped:
                                     _queue_question(tapped)
+                                # Opening a chat, or an answer just finished:
+                                # land on the newest message.
+                                _stick_thread_to_bottom(f"done-{len(chat['turns'])}")
 
                     with st.container(key="arya_composer"):
                         turn_count = len(chat.get("turns") or []) if chat else 0

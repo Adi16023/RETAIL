@@ -1290,6 +1290,32 @@ hr, [data-testid="stDivider"] {{
   min-height: 2.35rem !important;
   white-space: nowrap !important;
 }}
+/* Exit fullscreen stays neutral grey in every state — Streamlit's default
+   secondary button turns primary-purple on hover and draws a purple focus
+   ring, which read as an accent block on the button's edge. */
+[class*="st-key-arya-full-collapse"] button,
+[class*="st-key-arya-full-collapse"] .stButton > button {{
+  background: #fff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #334155 !important;
+  box-shadow: none !important;
+  outline: none !important;
+}}
+[class*="st-key-arya-full-collapse"] button:hover,
+[class*="st-key-arya-full-collapse"] button:focus,
+[class*="st-key-arya-full-collapse"] button:focus-visible,
+[class*="st-key-arya-full-collapse"] button:active {{
+  background: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
+  color: #0f172a !important;
+  box-shadow: none !important;
+  outline: none !important;
+}}
+[class*="st-key-arya-full-collapse"] button::before,
+[class*="st-key-arya-full-collapse"] button::after {{
+  content: none !important;
+  display: none !important;
+}}
 /* Body is only a mount point — panes are fixed below. */
 [class*="st-key-arya_full_body"] {{
   width: 100% !important;
@@ -1396,14 +1422,26 @@ hr, [data-testid="stDivider"] {{
   width: 100% !important;
   min-height: 2.35rem !important;
 }}
-/* Right pane — fixed. Idle: hero + chatbar centered. Chatting: thread
-   scrolls, chatbar pinned to the bottom. */
+/* Right pane (dock): arya_right_idle / arya_right_chat. Fullscreen uses
+   its own key, arya_chatpane, below. */
 [class*="st-key-arya_right"] {{
   padding: 0.85rem 1.15rem 0.9rem !important;
   box-sizing: border-box !important;
   background: #fff !important;
 }}
-[class*="st-key-arya_full"] [class*="st-key-arya_right"] {{
+/*
+ * Fullscreen right pane (arya_chatpane), idle or chatting — the thread and
+ * the chatbar are each pinned to the viewport, not laid out by flex. A flex
+ * height chain has to pass through every Streamlit wrapper (BorderWrapper >
+ * div > VerticalBlock) and one wrapper without a definite height leaves the
+ * thread a few lines tall with the bar floating mid-screen. Fixed boxes need
+ * no chain: the thread owns the space between the header and the bar and
+ * scrolls; the bar owns the bottom strip in both states, so it never moves
+ * when the first answer arrives. Geometry mirrors the panes above: header
+ * 4.25rem, left rail 17.5rem, bar strip --arya-bar-h.
+ */
+[class*="st-key-arya_chatpane"] {{
+  --arya-bar-h: 5.5rem;
   position: fixed !important;
   top: 4.25rem !important;
   left: 17.5rem !important;
@@ -1411,68 +1449,65 @@ hr, [data-testid="stDivider"] {{
   bottom: 0 !important;
   width: auto !important;
   height: auto !important;
-  z-index: 1205 !important;
-  padding: 1.25rem 2rem 1.25rem !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: #fff !important;
   overflow: hidden !important;
-  display: flex !important;
-  flex-direction: column !important;
+  z-index: 1205 !important;
   box-sizing: border-box !important;
 }}
-[class*="st-key-arya_full"] [class*="st-key-arya_right"] > div,
-[class*="st-key-arya_full"] [class*="st-key-arya_right"] > div > [data-testid="stVerticalBlock"] {{
-  height: 100% !important;
-  min-height: 0 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 0.75rem !important;
-  overflow: hidden !important;
+[class*="st-key-arya_full"] [class*="st-key-arya_chatpane"] [class*="st-key-arya_thread"] {{
+  position: fixed !important;
+  top: 4.25rem !important;
+  left: 17.5rem !important;
+  right: 0 !important;
+  bottom: var(--arya-bar-h) !important;
+  width: auto !important;
+  max-width: none !important;
+  height: auto !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 1.25rem 2rem 0.75rem !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  box-sizing: border-box !important;
+  z-index: 1206 !important;
 }}
-[class*="st-key-arya_full"] [class*="st-key-arya_thread"],
-[class*="st-key-arya_full"] [class*="st-key-arya_composer"] {{
-  width: min(64rem, 100%) !important;
+[class*="st-key-arya_full"] [class*="st-key-arya_chatpane"] [class*="st-key-arya_composer"] {{
+  position: fixed !important;
+  left: 17.5rem !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: auto !important;
+  max-width: none !important;
+  height: var(--arya-bar-h) !important;
+  margin: 0 !important;
+  padding: 0.75rem 2rem 1rem !important;
+  background: #fff !important;
+  box-sizing: border-box !important;
+  z-index: 1207 !important;
+}}
+/* Content stays a readable column, centred in the pane. */
+[class*="st-key-arya_chatpane"] [class*="st-key-arya_thread"] > div > [data-testid="stVerticalBlock"],
+[class*="st-key-arya_chatpane"] [class*="st-key-arya_composer"] > div > [data-testid="stVerticalBlock"] {{
+  width: 100% !important;
   max-width: 64rem !important;
   margin-left: auto !important;
   margin-right: auto !important;
 }}
-/* Idle (hero / arya_right_idle): keep the prompt + chatbar as a centered cluster. */
-[class*="st-key-arya_full"] [class*="st-key-arya_right_idle"] > div > [data-testid="stVerticalBlock"],
-[class*="st-key-arya_full"] [class*="st-key-arya_right"]:has(.rl-arya-hero) > div > [data-testid="stVerticalBlock"] {{
+/* Idle: the hero sits in the middle of the thread area; the bar stays put. */
+[class*="st-key-arya_chatpane"] [class*="st-key-arya_thread"]:has(.rl-arya-hero) > div,
+[class*="st-key-arya_chatpane"] [class*="st-key-arya_thread"]:has(.rl-arya-hero) > div > [data-testid="stVerticalBlock"] {{
+  height: 100% !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
   justify-content: center !important;
 }}
-[class*="st-key-arya_full"] [class*="st-key-arya_right_idle"] [class*="st-key-arya_thread"],
-[class*="st-key-arya_full"] [class*="st-key-arya_right"]:has(.rl-arya-hero) [class*="st-key-arya_thread"] {{
-  flex: 0 0 auto !important;
-  max-height: none !important;
-  overflow: visible !important;
-}}
-[class*="st-key-arya_full"] [class*="st-key-arya_right_idle"] [class*="st-key-arya_composer"],
-[class*="st-key-arya_full"] [class*="st-key-arya_right"]:has(.rl-arya-hero) [class*="st-key-arya_composer"] {{
-  flex: 0 0 auto !important;
-  margin-top: 0.35rem !important;
-}}
-[class*="st-key-arya_full"] [class*="st-key-arya_right_idle"] .rl-arya-hero,
-[class*="st-key-arya_full"] [class*="st-key-arya_right"]:has(.rl-arya-hero) .rl-arya-hero {{
+[class*="st-key-arya_chatpane"] .rl-arya-hero {{
   height: auto !important;
   min-height: 0 !important;
   padding: 1.25rem 1.5rem 0.5rem !important;
-}}
-/* Chatting (arya_right_chat): thread fills and scrolls; chatbar stays at the bottom. */
-[class*="st-key-arya_full"] [class*="st-key-arya_right_chat"] [class*="st-key-arya_thread"],
-[class*="st-key-arya_full"] [class*="st-key-arya_right"]:not(:has(.rl-arya-hero)):not([class*="st-key-arya_right_idle"]) [class*="st-key-arya_thread"] {{
-  flex: 1 1 0 !important;
-  min-height: 0 !important;
-  max-height: none !important;
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
-}}
-[class*="st-key-arya_full"] [class*="st-key-arya_right_chat"] [class*="st-key-arya_composer"],
-[class*="st-key-arya_full"] [class*="st-key-arya_right"]:not(:has(.rl-arya-hero)):not([class*="st-key-arya_right_idle"]) [class*="st-key-arya_composer"] {{
-  flex: 0 0 auto !important;
-  margin-top: auto !important;
-  background: #fff !important;
-  z-index: 2 !important;
-  padding-top: 0.5rem !important;
-  padding-bottom: 0.15rem !important;
 }}
 .rl-arya-widget-title {{
   margin: 0;
@@ -1510,6 +1545,11 @@ hr, [data-testid="stDivider"] {{
   max-height: 16rem !important;
   overflow-y: auto !important;
   padding: 0.15rem 0.1rem 0.35rem !important;
+}}
+/* The autoscroll script (aryachat._stick_thread_to_bottom) rides in a
+   script-only st.html; drop its wrapper so it adds no flex gap in the thread. */
+[class*="st-key-arya_thread"] [data-testid="stElementContainer"]:has(> [data-testid="stHtml"]) {{
+  display: none !important;
 }}
 [class*="st-key-arya_composer"] {{
   padding-top: 0.35rem !important;

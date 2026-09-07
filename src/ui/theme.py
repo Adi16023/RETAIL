@@ -1063,6 +1063,32 @@ hr, [data-testid="stDivider"] {{
   min-height: 0 !important;
   height: 100% !important;
 }}
+[class*="st-key-arya_shell"] [data-testid="stHorizontalBlock"] > div:first-child {{
+  flex: 0 0 15.5rem !important;
+  width: 15.5rem !important;
+  min-width: 15.5rem !important;
+  max-width: 15.5rem !important;
+  border-right: 1px solid var(--rl-line);
+  padding-right: 0.75rem !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}}
+[class*="st-key-arya_shell"] [data-testid="stHorizontalBlock"] > div:last-child {{
+  min-width: 0 !important;
+  overflow-y: auto !important;
+  padding-left: 1rem !important;
+}}
+[class*="st-key-arya_chat_nav"] {{
+  height: 100%;
+}}
+.rl-arya-side-title {{
+  margin: 0 0 0.35rem;
+  padding: 0 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: #0f172a;
+}}
 [class*="st-key-aryachat_active_"][class*="-search"] [data-baseweb="input"],
 [class*="st-key-aryachat_active_"][class*="-search"] [data-testid="stTextInputRootElement"] {{
   min-height: 2.25rem !important;

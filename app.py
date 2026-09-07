@@ -58,7 +58,7 @@ from pipeline.report import assemble_report
 from pipeline.timeline import PRESENCE_ONLY_DIMENSIONS, build_timeline
 from ui import cache
 from ui.accounts import apply_investigation_cache, build_account_catalogue, render_account_book
-from ui.aryachat import render_aryachat, render_sidebar_chats, sync_chat_nav
+from ui.aryachat import render_aryachat, sync_chat_nav
 from ui.compare import render_comparison
 from ui.decide import render_decision, render_early_warning, render_no_lever, render_options
 from ui.palette import active
@@ -674,7 +674,6 @@ with st.sidebar:
     )
     sync_chat_nav(book_fingerprint)
     current_page = st.session_state["home_page"]
-    render_sidebar_chats(book_fingerprint)
     for page in PAGES:
         if page["key"] == "ask":
             continue

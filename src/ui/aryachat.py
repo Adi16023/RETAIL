@@ -2,17 +2,18 @@
 The AryaChat panel: a manager asks about any account, or about the whole
 book, in as many separate chats as they like, each with its own context.
 
-The screen follows youkti-app's Arya chat: a quiet conversation sidebar
-(search, date groups, one New chat), an idle hero, and a composer pinned
-at the bottom. A conversation is created only when the first message is
-sent. Nothing is pre-selected and nothing is pre-written — the manager
-types the question, the model works out which account (if any)
-it is about, calls the tool that holds the answer, and answers from it. A
-turn is shown as it happens: tool chips appear while a look-up runs and flip
-to done when it returns (open one to see what came back), the answer streams
-in as the model writes it, and 2-3 next-question chips land under the
-finished answer; tapping one sends it verbatim. Chips are ephemeral — they
-belong to the latest answer only and are never stored.
+The screen follows youkti-app's Arya chat: New chat lives in the app
+sidebar; recent chats sit in a secondary sidebar on this page only; the
+idle hero and composer fill the rest. A conversation is created only when
+the first message is sent. Nothing is pre-selected and nothing is
+pre-written — the manager types the question, the model works out which
+account (if any) it is about, calls the tool that holds the answer, and
+answers from it. A turn is shown as it happens: tool chips appear while a
+look-up runs and flip to done when it returns (open one to see what came
+back), the answer streams in as the model writes it, and 2-3 next-question
+chips land under the finished answer; tapping one sends it verbatim.
+Chips are ephemeral — they belong to the latest answer only and are never
+stored.
 
 The account the chat is currently about is shown above the composer and
 carried into the next question, so "and the margin?" needs no repetition.
@@ -269,13 +270,14 @@ def sync_chat_nav(fingerprint: str) -> None:
     _confirm_delete(fingerprint, key)
 
 
-def render_sidebar_chats(fingerprint: str) -> None:
-    """Conversation list for the app sidebar. Search is hidden for now."""
+def render_chat_sidebar(fingerprint: str) -> None:
+    """Recent chats — secondary sidebar on the AryaChat page only."""
     key = _state_key(fingerprint)
     chats = [
         row for row in chatstore.list_chats(SCOPE, fingerprint)
         if row["turn_count"] > 0
     ]
+    st.markdown('<p class="rl-arya-side-title">Recent chats</p>', unsafe_allow_html=True)
     html = _sidebar_html(chats, st.session_state.get(key))
     if html:
         st.markdown(html, unsafe_allow_html=True)
@@ -350,27 +352,32 @@ def render_aryachat(df, fingerprint: str, model_id: str, choice_label: str, make
     tapped = None
 
     with st.container(key="arya_shell"):
-        if idle:
-            st.markdown(
-                '<div class="rl-arya-hero"><h1>How can I help with your accounts?</h1></div>',
-                unsafe_allow_html=True,
-            )
-            components.html(
-                "<script>const d=window.parent.document;"
-                "['stAppViewContainer','stMain'].forEach(id=>{"
-                "const el=d.querySelector('[data-testid=\"'+id+'\"]');"
-                "if(el)el.scrollTop=0;});"
-                "d.documentElement.scrollTop=0;d.body.scrollTop=0;"
-                "window.parent.scrollTo(0,0);</script>",
-                height=0,
-            )
-        else:
-            if chat.get("summary"):
-                with st.expander("What the earlier turns established"):
-                    st.markdown(chat["summary"])
-            for turn in chat.get("turns") or []:
-                _render_turn(turn, names)
-            tapped = _render_chips(key, chat)
+        side, main = st.columns([1, 3], gap="medium")
+        with side:
+            with st.container(key="arya_chat_nav"):
+                render_chat_sidebar(fingerprint)
+        with main:
+            if idle:
+                st.markdown(
+                    '<div class="rl-arya-hero"><h1>How can I help with your accounts?</h1></div>',
+                    unsafe_allow_html=True,
+                )
+                components.html(
+                    "<script>const d=window.parent.document;"
+                    "['stAppViewContainer','stMain'].forEach(id=>{"
+                    "const el=d.querySelector('[data-testid=\"'+id+'\"]');"
+                    "if(el)el.scrollTop=0;});"
+                    "d.documentElement.scrollTop=0;d.body.scrollTop=0;"
+                    "window.parent.scrollTo(0,0);</script>",
+                    height=0,
+                )
+            else:
+                if chat.get("summary"):
+                    with st.expander("What the earlier turns established"):
+                        st.markdown(chat["summary"])
+                for turn in chat.get("turns") or []:
+                    _render_turn(turn, names)
+                tapped = _render_chips(key, chat)
 
     question = st.chat_input("Ask about an account, or about the book…", key=f"{key}-input")
     question = question or tapped
@@ -380,54 +387,54 @@ def render_aryachat(df, fingerprint: str, model_id: str, choice_label: str, make
         chat = chatstore.new_chat(SCOPE, fingerprint, model_id, focus_account=initial_focus)
         st.session_state[key] = chat["chat_id"]
 
-        # Auto-compact when the un-summarised tail has grown past the threshold.
-        if len(chatstore.unsummarised_turns(chat)) > COMPACT_AFTER_TURNS:
-            try:
-                _compact(chat, make_client, model_id)
-            except Exception as e:
-                st.warning(f"Could not compact the earlier turns ({e}); answering with the recent ones only.")
+    # Auto-compact when the un-summarised tail has grown past the threshold.
+    if len(chatstore.unsummarised_turns(chat)) > COMPACT_AFTER_TURNS:
+        try:
+            _compact(chat, make_client, model_id)
+        except Exception as e:
+            st.warning(f"Could not compact the earlier turns ({e}); answering with the recent ones only.")
 
-        chatstore.append_turn(chat, "user", question)
-        chatstore.save_chat(chat)
-        with st.chat_message("user"):
-            st.markdown(question)
+    chatstore.append_turn(chat, "user", question)
+    chatstore.save_chat(chat)
+    with st.chat_message("user"):
+        st.markdown(question)
 
-        with st.chat_message("assistant"):
-            activity = st.container()
-            slot = st.empty()
-            live_turn = _LiveTurn(activity, slot)
-            try:
-                client = make_client()
-                answer = ask(
-                    client, df, question,
-                    pack_for=pack_for, report_for=report_for,
-                    focus_account=chat.get("focus_account"),
-                    turns=chat["turns"][chat.get("summarised_through", 0):-1],
-                    summary=chat.get("summary"), model=model_id,
-                    on_event=live_turn,
-                )
-            except ChatError as e:
-                error = f"The model did not answer: {e}"
-            except Exception as e:  # provider errors surface as text, never a crash
-                error = f"Could not reach the model: {e}"
-            else:
-                error = None
-            if error:
-                slot.error(error)
-                chatstore.drop_last_turn(chat)
-                chatstore.save_chat(chat)
-                return
-            live_turn.finish(answer["answer"])
-            chatstore.append_turn(
-                chat, "assistant", answer["answer"], model=model_id,
-                tools_used=answer.get("tools_used") or [],
-                tool_log=answer.get("tool_log") or [],
-                accounts_touched=answer.get("accounts_touched") or [],
-                unsourced_figures=answer.get("unsourced_figures") or [],
-                usage=answer.get("usage") or {},
-                truncated=bool(answer.get("truncated")),
+    with st.chat_message("assistant"):
+        activity = st.container()
+        slot = st.empty()
+        live_turn = _LiveTurn(activity, slot)
+        try:
+            client = make_client()
+            answer = ask(
+                client, df, question,
+                pack_for=pack_for, report_for=report_for,
+                focus_account=chat.get("focus_account"),
+                turns=chat["turns"][chat.get("summarised_through", 0):-1],
+                summary=chat.get("summary"), model=model_id,
+                on_event=live_turn,
             )
-            chatstore.set_focus(chat, answer.get("focus_account"))
+        except ChatError as e:
+            error = f"The model did not answer: {e}"
+        except Exception as e:  # provider errors surface as text, never a crash
+            error = f"Could not reach the model: {e}"
+        else:
+            error = None
+        if error:
+            slot.error(error)
+            chatstore.drop_last_turn(chat)
             chatstore.save_chat(chat)
-            _remember_chips(key, chat, answer.get("follow_ups") or [])
-        st.rerun()
+            return
+        live_turn.finish(answer["answer"])
+        chatstore.append_turn(
+            chat, "assistant", answer["answer"], model=model_id,
+            tools_used=answer.get("tools_used") or [],
+            tool_log=answer.get("tool_log") or [],
+            accounts_touched=answer.get("accounts_touched") or [],
+            unsourced_figures=answer.get("unsourced_figures") or [],
+            usage=answer.get("usage") or {},
+            truncated=bool(answer.get("truncated")),
+        )
+        chatstore.set_focus(chat, answer.get("focus_account"))
+        chatstore.save_chat(chat)
+        _remember_chips(key, chat, answer.get("follow_ups") or [])
+    st.rerun()

@@ -165,3 +165,88 @@ def test_shim_clamps_the_output_ceiling_but_never_raises_it():
     client.messages.create(model="x", max_tokens=512, system="s", tools=[], messages=[])
     sent = [c["max_tokens"] for c in fake_groq.chat.completions.calls]
     assert sent == [GROQ_MAX_OUTPUT_TOKENS, 512]
+
+
+def groq_chunk(content=None, tool_calls=None, finish_reason=None, usage=None):
+    """One streamed chunk. `tool_calls` entries are (index, id, name, arguments_fragment)."""
+    delta = SimpleNamespace(
+        content=content,
+        tool_calls=[
+            SimpleNamespace(index=i, id=call_id, function=SimpleNamespace(name=name, arguments=fragment))
+            for i, call_id, name, fragment in (tool_calls or [])
+        ] or None,
+    )
+    chunk = SimpleNamespace(choices=[SimpleNamespace(delta=delta, finish_reason=finish_reason)])
+    if usage is not None:
+        chunk.x_groq = SimpleNamespace(usage=usage)
+    return chunk
+
+
+def test_stream_forwards_text_deltas_and_assembles_tool_call_fragments():
+    """AryaChat streams: text must arrive as it is written, while a tool
+    call's arguments — which Groq sends in pieces — must only ever appear
+    assembled, in the final message, in the Anthropic shape."""
+    chunks = iter([
+        groq_chunk(content="Let me "),
+        groq_chunk(content="check."),
+        groq_chunk(tool_calls=[(0, "call_a", "get_product_changes", '{"cate')]),
+        groq_chunk(tool_calls=[(0, None, None, 'gory": null}')]),
+        groq_chunk(finish_reason="tool_calls",
+                   usage=SimpleNamespace(prompt_tokens=900, completion_tokens=30)),
+    ])
+    fake_groq = FakeGroqClient([chunks])
+    client = GroqBackedTestClient(fake_groq)
+
+    seen = []
+    with client.messages.stream(model="x", max_tokens=16000, system="s", tools=[], messages=[]) as stream:
+        for delta in stream.text_stream:
+            seen.append(delta)
+        final = stream.get_final_message()
+
+    assert seen == ["Let me ", "check."]
+    assert fake_groq.chat.completions.calls[0]["stream"] is True
+    assert fake_groq.chat.completions.calls[0]["max_tokens"] == GROQ_MAX_OUTPUT_TOKENS
+    assert final.stop_reason == "tool_use"
+    assert [b.type for b in final.content] == ["text", "tool_use"]
+    assert final.content[0].text == "Let me check."
+    assert final.content[1].name == "get_product_changes" and final.content[1].id == "call_a"
+    assert final.content[1].input == {"category": None}
+    assert (final.usage.input_tokens, final.usage.output_tokens) == (900, 30)
+
+
+def test_stream_final_message_works_without_reading_the_text_first():
+    fake_groq = FakeGroqClient([iter([groq_chunk(content="done"), groq_chunk(finish_reason="stop")])])
+    client = GroqBackedTestClient(fake_groq)
+    with client.messages.stream(model="x", max_tokens=100, system="s", tools=[], messages=[]) as stream:
+        final = stream.get_final_message()
+    assert final.stop_reason == "end_turn" and final.content[0].text == "done"
+
+
+def test_usage_rides_on_the_converted_response_when_groq_sends_it():
+    response = groq_response(content="ok")
+    assert _groq_response_to_anthropic(response).usage is None
+    response.usage = SimpleNamespace(prompt_tokens=10, completion_tokens=4)
+    converted = _groq_response_to_anthropic(response)
+    assert (converted.usage.input_tokens, converted.usage.output_tokens) == (10, 4)
+
+
+def test_string_assistant_content_replays_as_plain_text():
+    """A chat history replays earlier answers as plain strings, the shape
+    Anthropic accepts; the shim must not iterate the characters."""
+    groq_messages = _anthropic_messages_to_groq("sys", [
+        {"role": "user", "content": "Why is margin down?"},
+        {"role": "assistant", "content": "It fell from 32.2% to 19.9%."},
+        {"role": "user", "content": "Since when?"},
+    ])
+    assert groq_messages[2] == {"role": "assistant", "content": "It fell from 32.2% to 19.9%."}
+    assert groq_messages[3] == {"role": "user", "content": "Since when?"}
+
+
+def test_dict_content_blocks_are_accepted_too():
+    groq_messages = _anthropic_messages_to_groq("sys", [
+        {"role": "user", "content": "q"},
+        {"role": "assistant", "content": [{"type": "text", "text": "a"},
+                                          {"type": "tool_use", "name": "get_kpis", "input": {}, "id": "t1"}]},
+    ])
+    assert groq_messages[2]["content"] == "a"
+    assert groq_messages[2]["tool_calls"][0]["function"]["name"] == "get_kpis"

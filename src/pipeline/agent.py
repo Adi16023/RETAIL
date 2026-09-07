@@ -23,7 +23,7 @@ import pandas as pd
 from .detect import _monthly_category_series, product_changes
 from .changepoint import full_month_index
 
-DEFAULT_MODEL = "claude-opus-5"
+DEFAULT_MODEL = "claude-sonnet-5"  # the one model the app and the scorer run on (Sept 7)
 MAX_ITERATIONS = 6
 
 # Output ceiling per model call. Claude 5-family models think before they

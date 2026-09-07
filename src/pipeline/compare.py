@@ -37,7 +37,7 @@ import pandas as pd
 from .evidence import build_evidence_pack
 from .timeline import build_timeline
 
-DEFAULT_MODEL = "claude-opus-5"
+DEFAULT_MODEL = "claude-sonnet-5"
 
 # A comparison is one prompt, so the account list is bounded by what fits in
 # it usefully rather than by what the model will technically accept. Around

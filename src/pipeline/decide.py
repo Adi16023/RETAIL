@@ -45,7 +45,7 @@ import json
 
 from .detect import MARGIN_EROSION_PP
 
-DEFAULT_MODEL = "claude-opus-5"
+DEFAULT_MODEL = "claude-sonnet-5"
 
 # How much of the discount creep to claw back, as fractions of the gap
 # between where discounting started and where it is now. Fractions rather

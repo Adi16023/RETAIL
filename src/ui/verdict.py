@@ -233,17 +233,30 @@ def _timeline_section(report: dict) -> None:
         )
 
 
+def _with_current_opinion(report: dict, pack: dict | None) -> dict:
+    """A verdict saved before the classifier existed carries no opinion of
+    its own. The pack's current opinion is still worth showing beside it."""
+    if report.get("model_opinion") is None and (pack or {}).get("model_opinion", {}).get("available"):
+        from pipeline.report import model_agreement
+        return {**report, "model_opinion": pack["model_opinion"],
+                "model_agreement": model_agreement(pack, report)}
+    return report
+
+
+def render_verdict_header(report: dict, pack: dict | None = None) -> None:
+    """The verdict at a glance — banner, leak dimensions, money — without
+    the narrative. The Detect page shows this above the evidence once an
+    investigation exists, so the call and the rupee figures are on the
+    first screen a manager opens; the full reasoning stays on Investigate."""
+    _banner(_with_current_opinion(report, pack), active())
+    _money_row(report)
+
+
 def render_verdict(report: dict, pack: dict | None = None, cached: bool = False) -> None:
     """Render one investigation result. `pack` supplies the classifier's
     opinion for a verdict saved before the classifier existed."""
     colors = active()
-
-    # A verdict saved before the classifier existed carries no opinion of its
-    # own. The pack's current opinion is still worth showing beside it.
-    if report.get("model_opinion") is None and (pack or {}).get("model_opinion", {}).get("available"):
-        from pipeline.report import model_agreement
-        report = {**report, "model_opinion": pack["model_opinion"],
-                  "model_agreement": model_agreement(pack, report)}
+    report = _with_current_opinion(report, pack)
 
     if cached:
         metadata = report.get("_cache_metadata", {})

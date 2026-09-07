@@ -58,12 +58,13 @@ from pipeline.report import assemble_report
 from pipeline.timeline import PRESENCE_ONLY_DIMENSIONS, build_timeline
 from ui import cache
 from ui.accounts import apply_investigation_cache, build_account_catalogue, render_account_book
+from ui.aryachat import render_aryachat
 from ui.compare import render_comparison
 from ui.decide import render_decision, render_early_warning, render_no_lever, render_options
 from ui.palette import active
 from ui.dashboard import render_account_dashboard
 from ui import theme
-from ui.verdict import render_verdict
+from ui.verdict import render_verdict, render_verdict_header
 from validation.answer_key import AnswerKeyUnavailable, load_answer_key, score_report
 
 MERIDIAN_TRANSACTIONS = REPO_ROOT / "data" / "meridian" / "transactions.csv"
@@ -86,6 +87,13 @@ MODEL_CHOICES = {
     },
 }
 
+# Every model call in the app — the investigation, the recommendation, the
+# comparison and the chat — runs on this one, and no page shows a picker
+# (removed Sept 7 at the user's request: the open-source model's free tier
+# cannot carry a chat turn, and a manager should not be asked to choose).
+# MODEL_CHOICES stays as the mapping; switching the whole app is this line.
+DEFAULT_MODEL_CHOICE = "Proprietary"
+
 st.set_page_config(
     page_title="Revenue Leakage Investigator",
     layout="wide",
@@ -96,6 +104,14 @@ theme.inject()
 # Same four pages as the old numbered steps. Sidebar labels are the pipeline
 # words; full titles and captions stay on the page itself.
 PAGES = [
+    {
+        "key": "ask",
+        "icon": ":material/forum:",
+        "number": 0,
+        "label": "AryaChat",
+        "title": "Ask about your accounts",
+        "caption": "Ask about any account, or the whole book, in plain words.",
+    },
     {
         "key": "data",
         "icon": ":material/analytics:",
@@ -137,16 +153,21 @@ PAGES = [
     #         "from the AI. This compares the two."
     #     ),
     # },
-    {
-        "key": "compare",
-        "icon": ":material/compare_arrows:",
-        "number": 3,
-        "label": "Prioritise",
-        "title": "How do these accounts compare?",
-        "caption": (
-            "Several accounts side by side: who to call first, and which are living the same story."
-        ),
-    },
+    # Prioritise — several accounts side by side. Hidden from the nav since
+    # Sept 7 at the user's request: AryaChat answers "who do I call first" and
+    # "compare A and B" from the same digest, so the page said the same thing
+    # twice. `render_compare_page` stays; restore this entry (and the routing
+    # branch at the bottom of the file) to bring it back.
+    # {
+    #     "key": "compare",
+    #     "icon": ":material/compare_arrows:",
+    #     "number": 3,
+    #     "label": "Prioritise",
+    #     "title": "How do these accounts compare?",
+    #     "caption": (
+    #         "Several accounts side by side: who to call first, and which are living the same story."
+    #     ),
+    # },
 ]
 
 
@@ -559,6 +580,14 @@ def cached_account_fingerprint(df: pd.DataFrame, account_id: str) -> str:
 
 
 @st.cache_data(show_spinner=False, hash_funcs={pd.DataFrame: cache.dataframe_identity})
+def cached_book_fingerprint(df: pd.DataFrame) -> str:
+    """One hash for the whole file — what a book-level chat is keyed by, so
+    a replaced upload starts a clean chat list rather than quoting figures
+    that no longer exist."""
+    return cache.selection_fingerprint(df, list(df["account_id"].unique()))
+
+
+@st.cache_data(show_spinner=False, hash_funcs={pd.DataFrame: cache.dataframe_identity})
 def cached_account_index(df: pd.DataFrame) -> tuple[dict, list]:
     names = (
         df.drop_duplicates("account_id").set_index("account_id")["account_name"].to_dict()
@@ -587,8 +616,8 @@ if st.session_state.get("home_page") not in {p["key"] for p in PAGES}:
     # Also catches a browser session still pointing at a page that has since
     # been hidden, which would otherwise fail the page_spec lookup below.
     st.session_state["home_page"] = "data"
-if "model_choice" not in st.session_state:
-    st.session_state["model_choice"] = next(iter(MODEL_CHOICES))
+if st.session_state.get("model_choice") not in MODEL_CHOICES:
+    st.session_state["model_choice"] = DEFAULT_MODEL_CHOICE
 if "selected_account" not in st.session_state:
     st.session_state["selected_account"] = None
 
@@ -655,7 +684,7 @@ if report is not None:
 # the finished report; hashing and assembling the pack on those clicks was
 # wasted work that showed up as lag. The account book is its own cached table.
 needs_pack = account_id is not None and (
-    current_page in ("data", "verdict")
+    current_page in ("data", "verdict", "ask")
     or (report is not None and "evidence_timeline" not in report)
 )
 pack = cached_evidence_pack(df, account_id) if needs_pack else None
@@ -734,7 +763,44 @@ def render_data_page() -> None:
 
     _account_identity_bar()
     theme.page(page_spec["title"], page_spec["caption"])
+    _verdict_at_a_glance()
     render_account_dashboard(df, account_id, pack=pack)
+
+
+def _verdict_at_a_glance() -> None:
+    """The AI's call on the first screen.
+
+    The verdict is a paid model call that lives on Investigate, but the
+    manager opening an account wants the headline before the evidence. So:
+    if this account has already been investigated with the chosen model,
+    show the banner and the money here (the same header Investigate
+    renders); if not, say so and offer to run it in place, so the banner
+    appears without leaving the page. The reasoning and the PDF stay on
+    Investigate.
+    """
+    if report is not None:
+        render_verdict_header(report, pack=pack)
+        return
+
+    note, act = st.columns([3, 1], vertical_alignment="center")
+    with note:
+        st.caption(
+            f"Not yet analysed by the AI — the evidence below is complete on its own. "
+            "Run the AI to add the verdict and the rupees at risk here."
+        )
+    with act:
+        run_here = st.button(
+            "Analyse with AI", type="primary", width="stretch", key="detect-investigate",
+            help="One model call; the result is saved and reused on every page.",
+        )
+    if run_here:
+        with st.spinner(f"Investigating {account_id}…"):
+            fresh, error = investigate_account(df, account_id, pack, choice_label)
+        if error:
+            st.error(error)
+        else:
+            cache.save(fingerprint, account_id, model_id, fresh)
+            st.rerun()
 
 
 def render_verdict_page() -> None:
@@ -743,20 +809,14 @@ def render_verdict_page() -> None:
         return
     _account_identity_bar()
     theme.page(page_spec["title"], page_spec["caption"])
-    # The control row keeps the SAME three columns and the SAME single button in
+    # The control row keeps the SAME two columns and the SAME single button in
     # every state — only the button's enabled-ness and the status text change.
     # Swapping the button's label and type between "Run" and "Re-run" made the row
-    # reflow on every model switch, which read as the page flickering.
-    choose, act, status = st.columns([1, 1, 2])
-
-    with choose:
-        st.radio(
-            "Model", list(MODEL_CHOICES), horizontal=True, key="model_choice",
-            help="\n\n".join(f"**{k}** — {v['note']}" for k, v in MODEL_CHOICES.items()),
-        )
+    # reflow on every rerun, which read as the page flickering. There is no
+    # model picker: the app runs on DEFAULT_MODEL_CHOICE.
+    act, status = st.columns([1, 3])
 
     with act:
-        st.write("")
         investigate_clicked = st.button(
             "Investigate with AI",
             type="primary",
@@ -767,14 +827,11 @@ def render_verdict_page() -> None:
         )
 
     with status:
-        st.write("")
         if report is not None:
-            st.caption(
-                f"Already reviewed by the **{choice_label.lower()}** model — this is the saved result."
-            )
+            st.caption("Already reviewed — this is the saved result.")
 
     if report is None and investigate_clicked:
-        with st.spinner(f"Investigating {account_id} with the {choice_label.lower()} model…"):
+        with st.spinner(f"Investigating {account_id}…"):
             fresh, error = investigate_account(df, account_id, pack, choice_label)
         if error:
             st.error(error)
@@ -926,12 +983,12 @@ def render_compare_page() -> None:
             if comparison is not None:
                 st.caption(
                     f"These {len(selected_accounts)} accounts have already been compared with the "
-                    f"**{choice_label.lower()}** model — this is the saved result."
+                    "AI — this is the saved result."
                 )
 
         if comparison is None and compare_clicked:
             with st.spinner(
-                f"Comparing {len(selected_accounts)} accounts with the {choice_label.lower()} model…"
+                f"Comparing {len(selected_accounts)} accounts…"
             ):
                 comparison, compare_error = compare_selected_accounts(
                     comparison_digest, choice_label
@@ -948,11 +1005,50 @@ def render_compare_page() -> None:
             render_comparison(comparison, comparison_digest)
 
 
+def render_ask_page() -> None:
+    """AryaChat: the analyst for the whole book. Needs no account picked —
+    the manager names one in the question (or asks across the book) and
+    the model resolves it and calls the tool that holds the answer. An
+    account opened elsewhere in the app seeds a new chat's focus. The same
+    model picker as Investigate; the open-source model is the practical
+    default because a chat turn has to come back in seconds."""
+    if account_id:
+        _account_identity_bar()
+    else:
+        _, info = st.columns([4, 1])
+        with info:
+            _file_info_button()
+    theme.page(page_spec["title"], page_spec["caption"])
+    chosen = DEFAULT_MODEL_CHOICE
+    spec = MODEL_CHOICES[chosen]
+    model = spec["model"]
+
+    def make_client():
+        return get_live_client(spec["provider"], groq_model=model if spec["provider"] == "Groq" else None)
+
+    # The chat reaches the pipeline through these two: packs are the same
+    # cached ones Detect draws, verdicts are whatever this model has saved
+    # for an account (so a brief says "not analysed" rather than borrowing
+    # another model's call).
+    def pack_for(acc: str) -> dict:
+        return cached_evidence_pack(df, acc)
+
+    def report_for(acc: str):
+        return cache.load(cached_account_fingerprint(df, acc), acc, model)
+
+    render_aryachat(
+        df, cached_book_fingerprint(df), model, chosen, make_client,
+        pack_for, report_for, names, initial_focus=account_id,
+    )
+
+
 if current_page == "data":
     render_data_page()
 elif current_page == "verdict":
     render_verdict_page()
 # elif current_page == "score":
 #     render_score_page()
+# elif current_page == "compare":
+#     render_compare_page()
 else:
-    render_compare_page()
+    render_ask_page()

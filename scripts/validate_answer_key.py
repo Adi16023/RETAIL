@@ -12,7 +12,7 @@ Run from the repo root:
 
     python scripts/validate_answer_key.py                      # all 18 accounts
     python scripts/validate_answer_key.py --accounts ACC-101 ACC-109
-    python scripts/validate_answer_key.py --provider anthropic --model claude-opus-5
+    python scripts/validate_answer_key.py --provider anthropic --model claude-opus-5   # a different Claude
     python scripts/validate_answer_key.py --out scorecard.json
 """
 
@@ -53,7 +53,9 @@ def build_client(provider: str, model: str | None):
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--provider", choices=["groq", "anthropic"], default="groq")
+    # Defaults to the provider the app runs on (app.py DEFAULT_MODEL_CHOICE is
+    # "Proprietary"), so a score and the demo never quietly disagree.
+    parser.add_argument("--provider", choices=["groq", "anthropic"], default="anthropic")
     parser.add_argument("--model", default=None, help="Model id; defaults to the provider's default.")
     parser.add_argument("--accounts", nargs="*", default=None, help="Subset of account ids to score.")
     parser.add_argument("--out", default=None, help="Write the full scorecard JSON here.")

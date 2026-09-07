@@ -2,9 +2,11 @@
 The AryaChat panel: a manager asks about any account, or about the whole
 book, in as many separate chats as they like, each with its own context.
 
-The screen follows the ARYA MCP chat: a sidebar of conversations, a message
-thread and a composer. Nothing is pre-selected and nothing is pre-written —
-the manager types the question, the model works out which account (if any)
+The screen follows youkti-app's Arya chat: a quiet conversation sidebar
+(search, date groups, one New chat), an idle hero, and a composer pinned
+at the bottom. A conversation is created only when the first message is
+sent. Nothing is pre-selected and nothing is pre-written — the manager
+types the question, the model works out which account (if any)
 it is about, calls the tool that holds the answer, and answers from it. A
 turn is shown as it happens: tool chips appear while a look-up runs and flip
 to done when it returns (open one to see what came back), the answer streams
@@ -23,8 +25,11 @@ from nowhere.
 from __future__ import annotations
 
 import time
+from html import escape
+from urllib.parse import quote
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from pipeline.aryachat import (
     COMPACT_AFTER_TURNS,
@@ -75,12 +80,6 @@ def _state_key(fingerprint: str) -> str:
 
 def _chips_key(key: str) -> str:
     return f"{key}-chips"
-
-
-def _account_label(account_id: str | None, names: dict) -> str:
-    if not account_id:
-        return ""
-    return f"{account_id} · {names[account_id]}" if names.get(account_id) else account_id
 
 
 # --- Rendering a stored turn -------------------------------------------------------------
@@ -196,37 +195,90 @@ class _LiveTurn:
         self._render(final=True)
 
 
-# --- Sidebar ------------------------------------------------------------------------------
+# --- Sidebar (youkti Arya chat: one New chat, search, grouped quiet rows) ---------------
 
-def _chat_list(fingerprint: str, model_id: str, key: str, initial_focus: str | None, names: dict) -> None:
-    if st.button("New chat", icon=":material/add:", type="primary", width="stretch", key=f"{key}-new"):
-        chat = chatstore.new_chat(SCOPE, fingerprint, model_id, focus_account=initial_focus)
-        st.session_state[key] = chat["chat_id"]
-        st.session_state.pop(_chips_key(key), None)
-        st.rerun()
-    chats = chatstore.list_chats(SCOPE, fingerprint)
-    if not chats:
-        st.caption("No chats yet.")
+def _consume_nav(key: str) -> None:
+    if "delete_chat" in st.query_params:
+        st.session_state["arya_delete_id"] = st.query_params["delete_chat"]
+        del st.query_params["delete_chat"]
+    if "chat" not in st.query_params:
         return
-    active_id = st.session_state.get(key)
-    for row in chats:
-        focus = _account_label(row.get("focus_account"), names)
-        st.button(
-            row["title"],
-            key=f"{key}-open-{row['chat_id']}",
-            type="primary" if row["chat_id"] == active_id else "secondary",
-            width="stretch",
-            help=f"{row['turn_count']} turns · last {row['updated_at'][:16].replace('T', ' ')}"
-                 + (f" · about {focus}" if focus else ""),
-            on_click=lambda k=key, c=row["chat_id"]: st.session_state.__setitem__(k, c),
-        )
-    if active_id and any(row["chat_id"] == active_id for row in chats):
-        if st.button("Delete this chat", icon=":material/delete:", type="tertiary",
-                     key=f"{key}-delete", help="Removes this chat and its context. Cannot be undone."):
-            chatstore.delete_chat(SCOPE, fingerprint, active_id)
-            st.session_state.pop(key, None)
-            st.session_state.pop(_chips_key(key), None)
+    requested = st.query_params["chat"]
+    del st.query_params["chat"]
+    if requested == "new":
+        st.session_state[key] = None
+        st.session_state["home_page"] = "ask"
+        st.session_state.pop(_chips_key(key), None)
+        return
+    st.session_state[key] = requested
+    st.session_state["home_page"] = "ask"
+
+
+def _confirm_delete(fingerprint: str, key: str) -> None:
+    chat_id = st.session_state.get("arya_delete_id")
+    if not chat_id:
+        return
+
+    @st.dialog("Delete this chat?")
+    def _dialog() -> None:
+        st.write("This conversation and its messages will be removed. This can't be undone.")
+        cancel, confirm = st.columns(2)
+        if cancel.button("Cancel", width="stretch"):
+            st.session_state.pop("arya_delete_id", None)
             st.rerun()
+        if confirm.button("Delete", type="primary", width="stretch"):
+            chatstore.delete_chat(SCOPE, fingerprint, chat_id)
+            if st.session_state.get(key) == chat_id:
+                st.session_state.pop(key, None)
+            st.session_state.pop(_chips_key(key), None)
+            st.session_state.pop("arya_delete_id", None)
+            st.rerun()
+
+    _dialog()
+
+
+def _sidebar_html(chats: list[dict], active_id: str | None) -> str:
+    if not chats:
+        return ""
+    blocks = []
+    for label, items in chatstore.group_conversations(chats):
+        rows = []
+        for row in items:
+            chat_id = quote(row["chat_id"], safe="")
+            active = " rl-arya-row-active" if row["chat_id"] == active_id else ""
+            rows.append(
+                f'<div class="rl-arya-row{active}">'
+                f'<a class="rl-arya-row-title" href="?chat={chat_id}">{escape(row["title"])}</a>'
+                f'<a class="rl-arya-row-del" href="?delete_chat={chat_id}" title="Delete">×</a>'
+                f"</div>"
+            )
+        blocks.append(
+            f'<p class="rl-arya-group">{escape(label)}</p>'
+            f'<div class="rl-arya-group-list">{"".join(rows)}</div>'
+        )
+    return "".join(blocks)
+
+
+def sync_chat_nav(fingerprint: str) -> None:
+    """Apply sidebar / URL navigation before the page body renders."""
+    key = _state_key(fingerprint)
+    if st.session_state.pop("arya_force_idle", False):
+        st.session_state[key] = None
+        st.session_state.pop(_chips_key(key), None)
+    _consume_nav(key)
+    _confirm_delete(fingerprint, key)
+
+
+def render_sidebar_chats(fingerprint: str) -> None:
+    """Conversation list for the app sidebar. Search is hidden for now."""
+    key = _state_key(fingerprint)
+    chats = [
+        row for row in chatstore.list_chats(SCOPE, fingerprint)
+        if row["turn_count"] > 0
+    ]
+    html = _sidebar_html(chats, st.session_state.get(key))
+    if html:
+        st.markdown(html, unsafe_allow_html=True)
 
 
 def _compact(chat: dict, make_client, model_id: str) -> str | None:
@@ -289,36 +341,44 @@ def render_aryachat(df, fingerprint: str, model_id: str, choice_label: str, make
     cached outputs; `initial_focus` seeds a new chat with the account the
     manager has open elsewhere in the app, if any."""
     key = _state_key(fingerprint)
+    chat_id = st.session_state.get(key)
+    chat = chatstore.load_chat(SCOPE, fingerprint, chat_id) if chat_id else None
+    if chat is not None and not (chat.get("turns") or []):
+        chat = None
+        st.session_state[key] = None
+    idle = chat is None
+    tapped = None
 
-    side, main = st.columns([1, 3], gap="large")
-    with side:
-        st.markdown("**Chats**")
-        _chat_list(fingerprint, model_id, key, initial_focus, names)
+    with st.container(key="arya_shell"):
+        if idle:
+            st.markdown(
+                '<div class="rl-arya-hero"><h1>How can I help with your accounts?</h1></div>',
+                unsafe_allow_html=True,
+            )
+            components.html(
+                "<script>const d=window.parent.document;"
+                "['stAppViewContainer','stMain'].forEach(id=>{"
+                "const el=d.querySelector('[data-testid=\"'+id+'\"]');"
+                "if(el)el.scrollTop=0;});"
+                "d.documentElement.scrollTop=0;d.body.scrollTop=0;"
+                "window.parent.scrollTo(0,0);</script>",
+                height=0,
+            )
+        else:
+            if chat.get("summary"):
+                with st.expander("What the earlier turns established"):
+                    st.markdown(chat["summary"])
+            for turn in chat.get("turns") or []:
+                _render_turn(turn, names)
+            tapped = _render_chips(key, chat)
 
-    with main:
-        chat_id = st.session_state.get(key)
-        chat = chatstore.load_chat(SCOPE, fingerprint, chat_id) if chat_id else None
-        if chat is None:
-            st.info("Start a new chat, or pick one on the left.")
-            return
-
-        turns = chat.get("turns") or []
-        for turn in turns:
-            _render_turn(turn, names)
-        tapped = _render_chips(key, chat)
-
-        # No context line (focus, turns in context, tokens) — removed at the
-        # user's request; it is plumbing, and the focus is visible in the chat
-        # list's hover text. Compaction stays automatic and silent, and the
-        # summary it produces stays readable behind one collapsed row.
-        if chat.get("summary"):
-            with st.expander("What the earlier turns established"):
-                st.markdown(chat["summary"])
-
-        question = st.chat_input("Ask about an account, or about the book…", key=f"{key}-input")
-        question = question or tapped
-        if not question:
-            return
+    question = st.chat_input("Ask about an account, or about the book…", key=f"{key}-input")
+    question = question or tapped
+    if not question:
+        return
+    if chat is None:
+        chat = chatstore.new_chat(SCOPE, fingerprint, model_id, focus_account=initial_focus)
+        st.session_state[key] = chat["chat_id"]
 
         # Auto-compact when the un-summarised tail has grown past the threshold.
         if len(chatstore.unsummarised_turns(chat)) > COMPACT_AFTER_TURNS:

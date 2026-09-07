@@ -26,7 +26,7 @@ from __future__ import annotations
 import json
 import secrets
 import time
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 
 CHAT_DIR = Path(__file__).resolve().parents[2] / ".cache" / "aryachat"
@@ -92,6 +92,33 @@ def load_chat(scope: str, fingerprint: str, chat_id: str) -> dict | None:
 
 def delete_chat(scope: str, fingerprint: str, chat_id: str) -> None:
     _path(scope, fingerprint, chat_id).unlink(missing_ok=True)
+
+
+GROUP_ORDER = ("Today", "Yesterday", "Previous 7 days", "Older")
+
+
+def conversation_group_label(iso: str, today: date | None = None) -> str:
+    """Same buckets as youkti-app's Arya chat sidebar."""
+    today = today or date.today()
+    try:
+        day = datetime.fromisoformat(iso.replace("Z", "")).date()
+    except (TypeError, ValueError):
+        return "Older"
+    delta = (today - day).days
+    if delta <= 0:
+        return "Today"
+    if delta == 1:
+        return "Yesterday"
+    if delta < 7:
+        return "Previous 7 days"
+    return "Older"
+
+
+def group_conversations(rows: list[dict], today: date | None = None) -> list[tuple[str, list[dict]]]:
+    buckets = {label: [] for label in GROUP_ORDER}
+    for row in rows:
+        buckets[conversation_group_label(row.get("updated_at") or row.get("created_at") or "", today)].append(row)
+    return [(label, buckets[label]) for label in GROUP_ORDER if buckets[label]]
 
 
 def list_chats(scope: str, fingerprint: str) -> list[dict]:

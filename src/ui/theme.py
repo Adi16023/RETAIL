@@ -694,6 +694,32 @@ hr, [data-testid="stDivider"] {{
   text-align: center;
   box-shadow: var(--rl-shadow);
 }}
+[data-testid="stSidebar"] [class*="st-key-arya-new-chat"] button,
+[data-testid="stSidebar"] [class*="st-key-arya-new-chat"] .stButton > button {{
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 0.4rem !important;
+  min-height: 2.25rem !important;
+  margin: 0 0 0.65rem !important;
+  padding: 0.45rem 0.75rem !important;
+  border-radius: 0.5rem !important;
+  background: var(--youkti-primary) !important;
+  border: 1px solid var(--youkti-primary) !important;
+  color: #fff !important;
+  font-weight: 650 !important;
+  box-shadow: none !important;
+}}
+[data-testid="stSidebar"] [class*="st-key-arya-new-chat"] button *,
+[data-testid="stSidebar"] [class*="st-key-arya-new-chat"] button [data-testid="stIconMaterial"] {{
+  display: inline-flex !important;
+  color: #fff !important;
+}}
+[data-testid="stSidebar"] [class*="st-key-arya-new-chat"] button:hover {{
+  background: var(--youkti-primary-hover) !important;
+  border-color: var(--youkti-primary-hover) !important;
+  color: #fff !important;
+}}
 [class*="st-key-navpage-data"] button::before {{ content: "1"; }}
 [class*="st-key-navpage-verdict"] button::before {{ content: "2"; }}
 [class*="st-key-navpage-score"] button::before {{ content: "3"; }}
@@ -1003,6 +1029,131 @@ hr, [data-testid="stDivider"] {{
   color: var(--rl-ink);
 }}
 
+/* AryaChat — one screen, like youkti. A 100dvh hero plus the pinned
+   composer used to make the page taller than the window; Streamlit then
+   scrolled to the input, so the sidebar started off the top. */
+.stApp:has([class*="st-key-arya_shell"]),
+[data-testid="stApp"]:has([class*="st-key-arya_shell"]),
+[data-testid="stAppViewContainer"]:has([class*="st-key-arya_shell"]),
+[data-testid="stMain"]:has([class*="st-key-arya_shell"]),
+.stMain:has([class*="st-key-arya_shell"]) {{
+  overflow: hidden !important;
+}}
+.stMainBlockContainer:has([class*="st-key-arya_shell"]),
+[data-testid="stMainBlockContainer"]:has([class*="st-key-arya_shell"]),
+.block-container:has([class*="st-key-arya_shell"]) {{
+  padding-top: 1rem !important;
+  padding-bottom: 0 !important;
+  overflow: hidden !important;
+  height: 100% !important;
+  max-height: 100% !important;
+}}
+[class*="st-key-arya_shell"] {{
+  margin: 0;
+  height: calc(100dvh - 9.25rem);
+  max-height: calc(100dvh - 9.25rem);
+  overflow: hidden;
+}}
+[class*="st-key-arya_shell"] [data-testid="stHorizontalBlock"] {{
+  align-items: stretch !important;
+  gap: 0 !important;
+  min-height: 0 !important;
+  height: 100% !important;
+}}
+[class*="st-key-aryachat_active_"][class*="-search"] [data-baseweb="input"],
+[class*="st-key-aryachat_active_"][class*="-search"] [data-testid="stTextInputRootElement"] {{
+  min-height: 2.25rem !important;
+  border: 1px solid var(--rl-line) !important;
+  border-radius: 0.75rem !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}}
+.rl-arya-group {{
+  margin: 0.85rem 0 0.25rem;
+  padding: 0 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}}
+.rl-arya-group-list {{
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}}
+.rl-arya-row {{
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.5rem;
+  color: #475569;
+}}
+.rl-arya-row:hover {{
+  background: #f8fafc;
+  color: #0f172a;
+}}
+.rl-arya-row-active {{
+  background: #f1f5f9;
+  color: #0f172a;
+}}
+.rl-arya-row-title {{
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit;
+  text-decoration: none;
+  font-size: 0.8125rem;
+  font-weight: 550;
+}}
+.rl-arya-row-del {{
+  flex: 0 0 auto;
+  width: 1.25rem;
+  color: #94a3b8;
+  text-decoration: none;
+  text-align: center;
+  font-size: 1rem;
+  line-height: 1;
+}}
+.rl-arya-row-del:hover {{
+  color: var(--rl-crit);
+}}
+.rl-arya-empty {{
+  margin: 1.5rem 0.5rem 0;
+  text-align: center;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}}
+.rl-arya-hero {{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 0;
+  padding: 1rem 1rem 4.5rem;
+}}
+.rl-arya-hero h1 {{
+  margin: 0;
+  font-size: clamp(1.65rem, 3vw, 2.15rem);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  text-align: center;
+  color: #0f172a;
+}}
+[data-testid="stChatInput"] {{
+  max-width: 48rem;
+  margin-left: auto;
+  margin-right: auto;
+}}
+[data-testid="stChatMessage"] {{
+  max-width: 52rem;
+  margin-left: auto;
+  margin-right: auto;
+}}
+
 [class*="st-key-account_pagination"] {{
   margin-top: 1rem !important;
   padding-top: 0.15rem !important;
@@ -1256,6 +1407,34 @@ hr, [data-testid="stDivider"] {{
   border-color: var(--youkti-primary) !important;
 }}
 [class*="st-key-account_rows_per_page"]:focus-within {{
+  border-color: var(--youkti-primary) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--youkti-primary) 28%, transparent) !important;
+}}
+
+/* Chat bar — black at rest, purple only while focused. */
+[data-testid="stChatInput"] > div,
+[data-testid="stChatInput"] [data-baseweb="base-input"],
+[data-testid="stChatInput"] [data-baseweb="textarea"] {{
+  border: 1px solid #111827 !important;
+  border-radius: 1.5rem !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}}
+[data-testid="stChatInput"] textarea {{
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}}
+[data-testid="stChatInput"]:hover > div,
+[data-testid="stChatInput"]:hover [data-baseweb="base-input"],
+[data-testid="stChatInput"]:hover [data-baseweb="textarea"] {{
+  border-color: #111827 !important;
+  box-shadow: none !important;
+}}
+[data-testid="stChatInput"]:focus-within > div,
+[data-testid="stChatInput"]:focus-within [data-baseweb="base-input"],
+[data-testid="stChatInput"]:focus-within [data-baseweb="textarea"] {{
   border-color: var(--youkti-primary) !important;
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--youkti-primary) 28%, transparent) !important;
 }}

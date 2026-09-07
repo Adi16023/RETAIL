@@ -58,7 +58,7 @@ from pipeline.report import assemble_report
 from pipeline.timeline import PRESENCE_ONLY_DIMENSIONS, build_timeline
 from ui import cache
 from ui.accounts import apply_investigation_cache, build_account_catalogue, render_account_book
-from ui.aryachat import render_aryachat
+from ui.aryachat import render_aryachat, render_sidebar_chats, sync_chat_nav
 from ui.compare import render_comparison
 from ui.decide import render_decision, render_early_warning, render_no_lever, render_options
 from ui.palette import active
@@ -106,9 +106,9 @@ theme.inject()
 PAGES = [
     {
         "key": "ask",
-        "icon": ":material/forum:",
+        "icon": ":material/edit_square:",
         "number": 0,
-        "label": "AryaChat",
+        "label": "New chat",
         "title": "Ask about your accounts",
         "caption": "Ask about any account, or the whole book, in plain words.",
     },
@@ -173,6 +173,12 @@ PAGES = [
 
 def _set_home_page(page_key: str) -> None:
     st.session_state["home_page"] = page_key
+
+
+def _new_chat() -> None:
+    """Open AryaChat on a blank thread — same as youkti's New chat."""
+    st.session_state["home_page"] = "ask"
+    st.session_state["arya_force_idle"] = True
 
 
 def _open_account(account_id: str) -> None:
@@ -621,28 +627,7 @@ if st.session_state.get("model_choice") not in MODEL_CHOICES:
 if "selected_account" not in st.session_state:
     st.session_state["selected_account"] = None
 
-with st.sidebar:
-    theme.sidebar_brand("Revenue Leakage Investigator")
-    current_page = st.session_state["home_page"]
-    for page in PAGES:
-        st.button(
-            page["label"],
-            key=f"navpage-{page['key']}",
-            type="primary" if current_page == page["key"] else "secondary",
-            use_container_width=True,
-            on_click=_set_home_page,
-            args=(page["key"],),
-        )
-    st.divider()
-    open_data_source = st.button(
-        "Choose your data source", icon=":material/folder_open:", use_container_width=True,
-        key="sidebar-source",
-    )
-
-# Opened from the main script, not inside the sidebar — otherwise Streamlit
-# parks the dialog over the left column instead of the centre of the page.
-if open_data_source:
-    show_data_source_modal()
+current_page = st.session_state["home_page"]
 
 if "upload_bytes" in st.session_state:
     using_reference = False
@@ -675,6 +660,43 @@ if st.session_state["selected_account"] not in set(accounts):
 account_id = st.session_state["selected_account"]
 choice_label = st.session_state["model_choice"]
 model_id = MODEL_CHOICES[choice_label]["model"]
+book_fingerprint = cached_book_fingerprint(df)
+
+with st.sidebar:
+    theme.sidebar_brand("Revenue Leakage Investigator")
+    st.button(
+        "New chat",
+        icon=":material/edit_square:",
+        key="arya-new-chat",
+        type="primary",
+        use_container_width=True,
+        on_click=_new_chat,
+    )
+    sync_chat_nav(book_fingerprint)
+    current_page = st.session_state["home_page"]
+    render_sidebar_chats(book_fingerprint)
+    for page in PAGES:
+        if page["key"] == "ask":
+            continue
+        st.button(
+            page["label"],
+            key=f"navpage-{page['key']}",
+            type="primary" if current_page == page["key"] else "secondary",
+            use_container_width=True,
+            on_click=_set_home_page,
+            args=(page["key"],),
+        )
+    st.divider()
+    open_data_source = st.button(
+        "Choose your data source", icon=":material/folder_open:", use_container_width=True,
+        key="sidebar-source",
+    )
+
+# Opened from the main script, not inside the sidebar — otherwise Streamlit
+# parks the dialog over the left column instead of the centre of the page.
+if open_data_source:
+    show_data_source_modal()
+
 fingerprint = cached_account_fingerprint(df, account_id) if account_id else None
 report = cache.load(fingerprint, account_id, model_id) if account_id else None
 if report is not None:
@@ -1012,13 +1034,6 @@ def render_ask_page() -> None:
     account opened elsewhere in the app seeds a new chat's focus. The same
     model picker as Investigate; the open-source model is the practical
     default because a chat turn has to come back in seconds."""
-    if account_id:
-        _account_identity_bar()
-    else:
-        _, info = st.columns([4, 1])
-        with info:
-            _file_info_button()
-    theme.page(page_spec["title"], page_spec["caption"])
     chosen = DEFAULT_MODEL_CHOICE
     spec = MODEL_CHOICES[chosen]
     model = spec["model"]

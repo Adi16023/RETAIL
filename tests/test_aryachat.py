@@ -58,6 +58,8 @@ from pipeline.aryachat import (
 )
 from pipeline.evidence import build_evidence_pack
 from pipeline.ingest import ingest
+from datetime import date
+
 from ui import chatstore
 
 from datasets import MERIDIAN_CSV
@@ -565,6 +567,21 @@ def test_summary_marks_which_turns_it_replaces(store):
     loaded = store.load_chat("book", "abc123", chat["chat_id"])
     assert loaded["summary"] == "the gist" and loaded["summarised_through"] == 4
     assert [t["text"] for t in store.unsummarised_turns(loaded)][:2] == ["Q2", "A2"]
+
+
+def test_conversations_group_like_youkti():
+    today = date(2026, 9, 7)
+    rows = [
+        {"title": "A", "updated_at": "2026-09-07T10:00:00"},
+        {"title": "B", "updated_at": "2026-09-06T10:00:00"},
+        {"title": "C", "updated_at": "2026-09-03T10:00:00"},
+        {"title": "D", "updated_at": "2026-08-01T10:00:00"},
+    ]
+    grouped = dict(chatstore.group_conversations(rows, today=today))
+    assert [row["title"] for row in grouped["Today"]] == ["A"]
+    assert [row["title"] for row in grouped["Yesterday"]] == ["B"]
+    assert [row["title"] for row in grouped["Previous 7 days"]] == ["C"]
+    assert [row["title"] for row in grouped["Older"]] == ["D"]
 
 
 def test_a_dangling_question_can_be_dropped(store):

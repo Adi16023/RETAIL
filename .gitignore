@@ -10,9 +10,13 @@ __pycache__/
 # different on every run. Regenerate rather than tracking the churn.
 scorecard.json
 
-# Saved investigation results, keyed by account + model + data fingerprint.
-# Purely a cost/latency cache — deleting it only costs a re-run.
-.cache/
+# Saved results, keyed by account + model + data fingerprint. The
+# investigations are shared: the fingerprint is a content hash of the
+# committed transactions.csv rows, so a teammate's checkout computes the
+# same file names and opens every account with its verdict already there.
+# Decisions, comparisons and chats stay local — a re-run or personal.
+.cache/*
+!.cache/investigations/
 
 # Third-party datasets used to calibrate the synthetic generator (e.g. UCI
 # Online Retail II, 43 MB). Downloaded by script, never committed.

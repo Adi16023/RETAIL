@@ -1,0 +1,1053 @@
+{
+  "account_id": "ACC-106",
+  "account_name": "Kingsway Distributors",
+  "verdict": "leakage_detected",
+  "temporary_or_structural": "structural",
+  "leak_dimensions": [
+    "revenue",
+    "category_mix",
+    "tier_mix",
+    "margin",
+    "order_pattern"
+  ],
+  "confidence": "high",
+  "defer": false,
+  "narrative": "Kingsway has structurally lost the entire Diagnostic Equipment line since June 2025, which explains most of a 24% revenue drop with no recovery in 10 months. High-tier share fell 7.85 points and order values dropped 31% alongside it. This is not seasonal or a data gap and looks like a genuine account defection, not temporary drift.",
+  "attributed_categories": [
+    "Diagnostic Equipment"
+  ],
+  "cited_evidence": [
+    "Diagnostic Equipment revenue fell from a monthly median of \u20b967,794 to zero after June 2025 and has stayed at zero for 10 months.",
+    "Total revenue dropped 24%, from \u20b9273,856 to \u20b9208,066 a month, and Diagnostic Equipment's loss alone explains most of that gap.",
+    "High-tier product share fell from 71.1% to 63.2% as this high-value category disappeared entirely.",
+    "Average order value fell 30.9%, from \u20b9225,912 to \u20b9156,049, with basket width narrowing from 6.67 to 5.25 items.",
+    "Margin rate slipped from 33.6% to 31.6% over the same period, a smaller but real additional erosion."
+  ],
+  "recommended_actions": [
+    "Contact Kingsway to learn why Diagnostic Equipment orders stopped since June 2025.",
+    "Check whether a competitor now supplies Diagnostic Equipment to this account.",
+    "Protect remaining high-tier categories (Power Tools, Precision Hardware) from further erosion."
+  ],
+  "data_needed_if_deferring": [],
+  "financial_impact": {
+    "per_category": [
+      {
+        "category": "Diagnostic Equipment",
+        "quantifiable": true,
+        "monthly_revenue_at_risk": 67794.28,
+        "historical_value_lost_to_date": 677942.8,
+        "annualized_run_rate_loss": 813531.36,
+        "persistence_months": 10,
+        "recovered": true,
+        "defected": true,
+        "category_baseline_revenue_share": 0.204
+      }
+    ],
+    "account_level_revenue_impact": null,
+    "margin_impact": null,
+    "total_monthly_revenue_at_risk": 67794.28,
+    "total_historical_value_lost": 677942.8,
+    "pct_of_baseline_monthly_revenue_at_risk": 0.2476,
+    "pct_of_baseline_monthly_margin_at_risk": null,
+    "overall_severity_pct_of_baseline": 0.2476
+  },
+  "prioritization": {
+    "priority": "High",
+    "magnitude_tier": "high",
+    "confidence_tier": "high",
+    "severity_pct_of_baseline": 0.2476,
+    "reason": "24.8% of baseline monthly revenue at risk, high confidence.",
+    "churn_risk_projection": {
+      "monthly_run_rate_loss": 67794.28,
+      "projected_12_month_loss_if_unaddressed": 813531.36,
+      "monthly_margin_loss": 0.0,
+      "projected_12_month_margin_loss_if_unaddressed": 0.0,
+      "basis": "Assumes the current monthly loss rate persists unchanged for 12 months \u2014 not a forecast of further deterioration, just the cost of inaction at today's rate. Revenue and margin figures overlap and must not be added together."
+    }
+  },
+  "data_sufficiency": {
+    "score": 1.0,
+    "label": "sufficient",
+    "flags": [],
+    "history_months": 22.3,
+    "order_count": 29,
+    "category_count": 8
+  },
+  "analysis_dimensions": {
+    "revenue": true,
+    "margin": true,
+    "discount": true,
+    "tier_mix": true,
+    "category_mix": true,
+    "order_pattern": true,
+    "returns": false
+  },
+  "model_opinion": {
+    "available": true,
+    "p_flag": 0.964,
+    "p_no_flag": 0.036,
+    "p_defer": 0.0,
+    "leaning": "leakage",
+    "leaning_outcome": "FLAG",
+    "decisive": true,
+    "top_drivers": [
+      {
+        "feature": "margin_change_pp",
+        "label": "margin change (pp)",
+        "value": -2.02,
+        "effect_on_leaning": 0.068,
+        "direction": "supports"
+      },
+      {
+        "feature": "p_tier_mix_halves",
+        "label": "p-value, high-tier share (half vs half)",
+        "value": 0.001,
+        "effect_on_leaning": 0.035,
+        "direction": "supports"
+      },
+      {
+        "feature": "basket_width_pct_change",
+        "label": "basket width change",
+        "value": -0.2129,
+        "effect_on_leaning": -0.016,
+        "direction": "argues against"
+      },
+      {
+        "feature": "p_margin",
+        "label": "p-value, margin (recent window)",
+        "value": 0.01,
+        "effect_on_leaning": 0.014,
+        "direction": "supports"
+      }
+    ],
+    "drivers_note": null
+  },
+  "model_agreement": {
+    "agrees": true,
+    "agent_outcome": "FLAG",
+    "model_outcome": "FLAG",
+    "model_decisive": true,
+    "agent_response": "Agree: the classifier's leakage call matches the sustained Diagnostic Equipment defection and confirmed tier-mix downgrade."
+  },
+  "evidence_timeline": [
+    {
+      "month": "2024-09",
+      "when": "2024-09",
+      "headline": "History begins",
+      "detail": "22.3 months of history, 29 orders across 8 categories. Data sufficiency: sufficient (score 1.0).",
+      "method": null,
+      "dimension": "history",
+      "reads_as": "context",
+      "notable": false
+    },
+    {
+      "month": "2025-10",
+      "when": "2025-10",
+      "headline": "Diagnostic Equipment stops completely",
+      "detail": "Last purchased in 2025-10; 10 consecutive months at zero since. This category was 20.4% of this account's baseline revenue. A clean stop names a specific line lost, which is more actionable than a general decline.",
+      "method": null,
+      "dimension": "category_mix",
+      "reads_as": "concern",
+      "notable": true
+    },
+    {
+      "month": "2025-11",
+      "when": "2025-11",
+      "headline": "The recent dip has no prior-year echo",
+      "detail": "Dipped in 2025-11, 2026-03, 2026-04, 2026-05, but the same months a year earlier were normal. Seasonality does not explain this.",
+      "method": null,
+      "dimension": "revenue",
+      "reads_as": "concern",
+      "notable": true
+    },
+    {
+      "month": "2026-03",
+      "when": "2026-03 - 2026-08",
+      "headline": "Revenue is in material decline",
+      "detail": "First half vs second half -21.1%, trend -1.68%/month.",
+      "method": "Material decline requires both <= -15.0% half-over-half and <= -1.50%/month trend.",
+      "dimension": "revenue",
+      "reads_as": "concern",
+      "notable": true
+    },
+    {
+      "month": "2026-03",
+      "when": "2026-03",
+      "headline": "Revenue dip, since recovered (2026-03 - 2026-05)",
+      "detail": "3 months below normal; trough Rs 195,814. Recovered from None. A resolved incident, not a live problem.",
+      "method": null,
+      "dimension": "revenue",
+      "reads_as": "reassuring",
+      "notable": true
+    },
+    {
+      "month": "2026-03",
+      "when": "2026-03 - 2026-08",
+      "headline": "Margin rate is stable",
+      "detail": "Margin rate 33.6% -> 31.6% (-2.0pp).",
+      "method": "Erosion threshold: 3.0pp between the baseline and recent windows.",
+      "dimension": "margin",
+      "reads_as": "reassuring",
+      "notable": false
+    },
+    {
+      "month": "2026-03",
+      "when": "2026-03 - 2026-08",
+      "headline": "Discounting is stable",
+      "detail": "Average discount 5.2% -> 4.9% (-0.3pp).",
+      "method": "Creep threshold: 3.0pp. Discount is revenue-weighted, so a deep discount on a large line counts for more than the same discount on a small one.",
+      "dimension": "discount",
+      "reads_as": "reassuring",
+      "notable": false
+    },
+    {
+      "month": "2026-03",
+      "when": "2026-03 - 2026-08",
+      "headline": "Product mix is stable",
+      "detail": "High-tier share of revenue 71.1% -> 63.2% (-7.8pp). Low tier 11.7% -> 14.9%.",
+      "method": "Shift threshold: 8.0pp. Direction decides the verdict \u2014 the same size of move upward is premiumisation, not a downgrade.",
+      "dimension": "tier_mix",
+      "reads_as": "reassuring",
+      "notable": false
+    },
+    {
+      "month": "2026-03",
+      "when": "2026-03 - 2026-08",
+      "headline": "4 product(s) stopped being bought",
+      "detail": "DG-Digital Multimeter Pro (Diagnostic Equipment, was Rs 23,651/month); DG-Thermal Imager (Diagnostic Equipment, was Rs 20,009/month); PH-Precision Torque Wrench (Precision Hardware, was Rs 11,473/month); DG-Insulation Tester (Diagnostic Equipment, was Rs 10,095/month)",
+      "method": null,
+      "dimension": "category_mix",
+      "reads_as": "concern",
+      "notable": true
+    },
+    {
+      "month": "2026-03",
+      "when": "2026-03 - 2026-08",
+      "headline": "Baskets are shrinking",
+      "detail": "Orders per month 1.17 -> 1.33 (13.7%); lines per order 6.67 -> 5.25 (-21.3%); average order value -30.9%. Order frequency has not risen to match, so this is not yet the classic multi-sourcing signature.",
+      "method": null,
+      "dimension": "order_pattern",
+      "reads_as": "concern",
+      "notable": true
+    }
+  ],
+  "evidence": {
+    "account_id": "ACC-106",
+    "account_name": "Kingsway Distributors",
+    "region": "South",
+    "account_manager": "Rohit Sharma",
+    "data_sufficiency": {
+      "score": 1.0,
+      "label": "sufficient",
+      "flags": [],
+      "history_months": 22.3,
+      "order_count": 29,
+      "category_count": 8
+    },
+    "analysis_dimensions": {
+      "revenue": true,
+      "margin": true,
+      "discount": true,
+      "tier_mix": true,
+      "category_mix": true,
+      "order_pattern": true,
+      "returns": false
+    },
+    "history": {
+      "start_date": "2024-09-24",
+      "end_date": "2026-08-03",
+      "months_of_history": 22.3,
+      "order_count": 29,
+      "category_count": 8
+    },
+    "overall_revenue": {
+      "baseline_monthly_median": 273855.825,
+      "recent_monthly_rate": 208065.93666666668,
+      "pct_change": -0.2402,
+      "monthly_revenue_coefficient_of_variation": 0.1433,
+      "change_point": null,
+      "monthly_series": {
+        "2024-09": 271986.8,
+        "2024-10": 284233.99,
+        "2024-11": 267993.37,
+        "2024-12": 287616.6,
+        "2025-01": 273080.32,
+        "2025-02": 284940.18,
+        "2025-03": 274631.33,
+        "2025-04": 289411.46,
+        "2025-05": 274729.75,
+        "2025-06": 292576.08,
+        "2025-07": 271814.0,
+        "2025-08": 275862.61,
+        "2025-09": 272019.9,
+        "2025-10": 277876.99,
+        "2025-11": 203133.61,
+        "2025-12": 212197.59,
+        "2026-01": 215393.37,
+        "2026-02": 214652.40000000002,
+        "2026-03": 200789.82,
+        "2026-04": 199274.05,
+        "2026-05": 195814.26,
+        "2026-06": 224388.99,
+        "2026-07": 208582.09999999998,
+        "2026-08": 219546.40000000002
+      }
+    },
+    "revenue_trend": {
+      "direction": "declining",
+      "slope_pct_per_month": -0.0168,
+      "first_half_vs_second_half_pct_change": -0.2106
+    },
+    "revenue_decline": {
+      "status": "material_decline",
+      "first_half_vs_second_half_pct_change": -0.2106,
+      "slope_pct_per_month": -0.0168,
+      "recent_vs_baseline_pct_change": -0.2402,
+      "material_thresholds": {
+        "first_half_vs_second_half_pct_change": -0.15,
+        "slope_pct_per_month": -0.015,
+        "recent_vs_baseline_pct_change": -0.25,
+        "note": "material if (halves AND slope) are met, OR the recent-vs-baseline drop is"
+      },
+      "p_value": 0.002,
+      "significant": true
+    },
+    "seasonality": {
+      "status": "not_present",
+      "dip_months": [
+        "2025-11",
+        "2026-03",
+        "2026-04",
+        "2026-05"
+      ],
+      "echo_months": [],
+      "echo_lift": 0.0,
+      "dip_threshold": 203925.3
+    },
+    "dip_episodes": [
+      {
+        "start_month": "2026-03",
+        "end_month": "2026-05",
+        "months": 3,
+        "trough_revenue": 195814.26,
+        "typical_monthly_revenue": 271900.4,
+        "recovered": false,
+        "recovered_from_month": null,
+        "is_ongoing": false
+      }
+    ],
+    "margin": {
+      "status": "stable",
+      "baseline_margin_pct": 0.3359,
+      "recent_margin_pct": 0.3157,
+      "margin_pct_change_pp": -2.02,
+      "months_below_baseline_margin": 0,
+      "threshold_pp": 3.0,
+      "p_value": 0.01,
+      "significant": true
+    },
+    "margin_profile": {
+      "baseline_margin_pct": 0.3359,
+      "recent_margin_pct": 0.3157,
+      "margin_pct_change_pp": -2.02,
+      "baseline_monthly_margin": 88522.19,
+      "recent_monthly_margin": 65691.94,
+      "monthly_margin_pct_series": {
+        "2024-09": 0.3293,
+        "2024-10": 0.3382,
+        "2024-11": 0.3372,
+        "2024-12": 0.344,
+        "2025-01": 0.3399,
+        "2025-02": 0.3438,
+        "2025-03": 0.3415,
+        "2025-04": 0.3449,
+        "2025-05": 0.3429,
+        "2025-06": 0.3414,
+        "2025-07": 0.3388,
+        "2025-08": 0.3408,
+        "2025-09": 0.3413,
+        "2025-10": 0.3421,
+        "2025-11": 0.3306,
+        "2025-12": 0.3223,
+        "2026-01": 0.3083,
+        "2026-02": 0.3143,
+        "2026-03": 0.3104,
+        "2026-04": 0.3097,
+        "2026-05": 0.3061,
+        "2026-06": 0.319,
+        "2026-07": 0.3253,
+        "2026-08": 0.3245
+      }
+    },
+    "discount": {
+      "status": "stable",
+      "baseline_avg_discount_pct": 0.0518,
+      "recent_avg_discount_pct": 0.0488,
+      "discount_pct_change_pp": -0.3,
+      "threshold_pp": 3.0,
+      "p_value": 0.5017,
+      "significant": false
+    },
+    "tier_mix": {
+      "status": "stable",
+      "baseline_share_by_tier": {
+        "High": 0.7106,
+        "Mid": 0.1721,
+        "Low": 0.1173
+      },
+      "recent_share_by_tier": {
+        "High": 0.6321,
+        "Mid": 0.2187,
+        "Low": 0.1492
+      },
+      "high_tier_share_change_pp": -7.85,
+      "threshold_pp": 8.0,
+      "p_value": 0.003,
+      "significant": true
+    },
+    "category_mix": {
+      "baseline_share": {
+        "Cleaning & Maintenance": 0.027,
+        "Consumables": 0.0602,
+        "Diagnostic Equipment": 0.204,
+        "Electrical Accessories": 0.0762,
+        "Fasteners & Fittings": 0.0959,
+        "Power Tools": 0.3518,
+        "Precision Hardware": 0.1549,
+        "Safety Basics": 0.0301
+      },
+      "recent_share": {
+        "Cleaning & Maintenance": 0.0329,
+        "Consumables": 0.0776,
+        "Electrical Accessories": 0.093,
+        "Fasteners & Fittings": 0.1257,
+        "Power Tools": 0.4371,
+        "Precision Hardware": 0.1951,
+        "Safety Basics": 0.0388
+      },
+      "high_value_categories": [
+        "Power Tools",
+        "Diagnostic Equipment",
+        "Precision Hardware"
+      ],
+      "low_value_categories": [
+        "Fasteners & Fittings",
+        "Electrical Accessories",
+        "Consumables",
+        "Safety Basics",
+        "Cleaning & Maintenance"
+      ],
+      "baseline_months": 18,
+      "recent_months": 6
+    },
+    "category_changes": [
+      {
+        "category": "Diagnostic Equipment",
+        "is_high_value": true,
+        "change_point_detected": true,
+        "defected": true,
+        "consecutive_months_at_zero": 10,
+        "baseline_revenue_share": 0.204,
+        "change_point_month": "2025-06",
+        "before_monthly_median": 67794.28,
+        "after_monthly_median": 0.0,
+        "pct_decline": 1.0,
+        "recovered": true,
+        "sustained_months_since_change_point": 10,
+        "seasonal_precedent": "insufficient_history",
+        "prior_year_echo": {
+          "status": "not_present",
+          "dip_months": [
+            "2025-11",
+            "2025-12",
+            "2026-01",
+            "2026-02",
+            "2026-03",
+            "2026-04",
+            "2026-05",
+            "2026-06",
+            "2026-07",
+            "2026-08"
+          ],
+          "echo_months": [],
+          "echo_lift": 0.0,
+          "dip_threshold": 46005.43
+        }
+      },
+      {
+        "category": "Cleaning & Maintenance",
+        "is_high_value": false,
+        "change_point_detected": false,
+        "defected": false,
+        "consecutive_months_at_zero": 0,
+        "baseline_revenue_share": 0.027
+      },
+      {
+        "category": "Consumables",
+        "is_high_value": false,
+        "change_point_detected": false,
+        "defected": false,
+        "consecutive_months_at_zero": 0,
+        "baseline_revenue_share": 0.0602
+      },
+      {
+        "category": "Electrical Accessories",
+        "is_high_value": false,
+        "change_point_detected": false,
+        "defected": false,
+        "consecutive_months_at_zero": 0,
+        "baseline_revenue_share": 0.0762
+      },
+      {
+        "category": "Fasteners & Fittings",
+        "is_high_value": false,
+        "change_point_detected": false,
+        "defected": false,
+        "consecutive_months_at_zero": 0,
+        "baseline_revenue_share": 0.0959
+      },
+      {
+        "category": "Power Tools",
+        "is_high_value": true,
+        "change_point_detected": false,
+        "defected": false,
+        "consecutive_months_at_zero": 0,
+        "baseline_revenue_share": 0.3518
+      },
+      {
+        "category": "Precision Hardware",
+        "is_high_value": true,
+        "change_point_detected": false,
+        "defected": false,
+        "consecutive_months_at_zero": 0,
+        "baseline_revenue_share": 0.1549
+      },
+      {
+        "category": "Safety Basics",
+        "is_high_value": false,
+        "change_point_detected": false,
+        "defected": false,
+        "consecutive_months_at_zero": 0,
+        "baseline_revenue_share": 0.0301
+      }
+    ],
+    "product_changes": [
+      {
+        "product_id": "PT-Cordless Drill 18V",
+        "category": "Power Tools",
+        "baseline_monthly_avg": 25493.13,
+        "recent_monthly_avg": 14341.43,
+        "status": "declined"
+      },
+      {
+        "product_id": "DG-Digital Multimeter Pro",
+        "category": "Diagnostic Equipment",
+        "baseline_monthly_avg": 23650.74,
+        "recent_monthly_avg": 0.0,
+        "status": "disappeared"
+      },
+      {
+        "product_id": "DG-Thermal Imager",
+        "category": "Diagnostic Equipment",
+        "baseline_monthly_avg": 20009.48,
+        "recent_monthly_avg": 0.0,
+        "status": "disappeared"
+      },
+      {
+        "product_id": "PH-Micrometer Set",
+        "category": "Precision Hardware",
+        "baseline_monthly_avg": 15436.82,
+        "recent_monthly_avg": 6897.28,
+        "status": "declined"
+      },
+      {
+        "product_id": "FF-Stainless Fastener Pack",
+        "category": "Fasteners & Fittings",
+        "baseline_monthly_avg": 15360.17,
+        "recent_monthly_avg": 9312.38,
+        "status": "declined"
+      },
+      {
+        "product_id": "PH-Precision Torque Wrench",
+        "category": "Precision Hardware",
+        "baseline_monthly_avg": 11472.96,
+        "recent_monthly_avg": 0.0,
+        "status": "disappeared"
+      },
+      {
+        "product_id": "EA-MCB 32A",
+        "category": "Electrical Accessories",
+        "baseline_monthly_avg": 11145.2,
+        "recent_monthly_avg": 6646.11,
+        "status": "declined"
+      },
+      {
+        "product_id": "DG-Insulation Tester",
+        "category": "Diagnostic Equipment",
+        "baseline_monthly_avg": 10094.75,
+        "recent_monthly_avg": 0.0,
+        "status": "disappeared"
+      },
+      {
+        "product_id": "CN-Cutting Blade 10pk",
+        "category": "Consumables",
+        "baseline_monthly_avg": 6184.15,
+        "recent_monthly_avg": 2501.82,
+        "status": "declined"
+      },
+      {
+        "product_id": "CM-Degreaser 5L",
+        "category": "Cleaning & Maintenance",
+        "baseline_monthly_avg": 3091.84,
+        "recent_monthly_avg": 1149.65,
+        "status": "declined"
+      }
+    ],
+    "order_pattern": {
+      "status": "baskets_shrinking",
+      "order_frequency_pct_change": 0.1368,
+      "basket_width_pct_change": -0.2129,
+      "aov_pct_change": -0.3092,
+      "thresholds": {
+        "order_frequency_pct_change": 0.3,
+        "basket_width_pct_change": -0.2
+      },
+      "p_value_frequency": 0.7306,
+      "p_value_basket_width": 0.1699,
+      "significant": true
+    },
+    "order_behavior": {
+      "order_frequency_baseline_per_month": 1.17,
+      "order_frequency_recent_per_month": 1.33,
+      "order_frequency_pct_change": 0.1368,
+      "aov_baseline": 225911.92,
+      "aov_recent": 156049.45,
+      "aov_pct_change": -0.3092,
+      "basket_width_baseline": 6.67,
+      "basket_width_recent": 5.25,
+      "basket_width_pct_change": -0.2129
+    },
+    "data_quality": {
+      "gaps": {
+        "months_in_history": 24,
+        "months_with_no_orders": [],
+        "note": null
+      },
+      "outlier_months": [],
+      "returns": {
+        "return_lines": 0,
+        "net_return_value": 0.0,
+        "share_of_gross_revenue": 0.0
+      }
+    },
+    "significance": {
+      "level": 0.05,
+      "n_permutations": 2000,
+      "revenue": {
+        "status": "tested",
+        "statistic": -0.2106,
+        "p_value": 0.002,
+        "statistic_halves": -0.2106,
+        "p_value_halves": 0.001,
+        "statistic_trend": -0.6983,
+        "p_value_trend": 0.001,
+        "significant": true,
+        "n_months": 24,
+        "recent_months": 6
+      },
+      "margin": {
+        "status": "tested",
+        "statistic": -0.0201,
+        "p_value": 0.01,
+        "statistic_halves": -0.0216,
+        "p_value_halves": 0.001,
+        "statistic_trend": -0.6217,
+        "p_value_trend": 0.002,
+        "significant": true,
+        "n_months": 24,
+        "recent_months": 6
+      },
+      "discount": {
+        "status": "tested",
+        "statistic": -0.003,
+        "p_value": 0.5017,
+        "statistic_halves": -0.0007,
+        "p_value_halves": 0.8916,
+        "statistic_trend": -0.0878,
+        "p_value_trend": 0.6817,
+        "significant": false,
+        "n_months": 24,
+        "recent_months": 6
+      },
+      "tier_mix": {
+        "status": "tested",
+        "statistic": -0.0785,
+        "p_value": 0.003,
+        "statistic_halves": -0.0764,
+        "p_value_halves": 0.001,
+        "statistic_trend": -0.7609,
+        "p_value_trend": 0.001,
+        "significant": true,
+        "n_months": 24,
+        "recent_months": 6
+      },
+      "order_frequency": {
+        "status": "tested",
+        "statistic": 0.1429,
+        "p_value": 0.7306,
+        "statistic_halves": 0.0714,
+        "p_value_halves": 0.9935,
+        "statistic_trend": 0.7574,
+        "p_value_trend": 0.4388,
+        "significant": false,
+        "n_months": 24,
+        "recent_months": 6
+      },
+      "basket_width": {
+        "status": "tested",
+        "statistic": -0.2125,
+        "p_value": 0.1699,
+        "statistic_halves": -0.1639,
+        "p_value_halves": 0.2919,
+        "statistic_trend": -0.5026,
+        "p_value_trend": 0.001,
+        "significant": true,
+        "n_months": 24,
+        "recent_months": 6
+      }
+    },
+    "_presentation": {
+      "discount_profile": {
+        "baseline_avg_discount_pct": 0.0518,
+        "recent_avg_discount_pct": 0.0488,
+        "discount_pct_change_pp": -0.3,
+        "monthly_avg_discount_series": {
+          "2024-09": 0.0683,
+          "2024-10": 0.0468,
+          "2024-11": 0.0557,
+          "2024-12": 0.0425,
+          "2025-01": 0.0565,
+          "2025-02": 0.0467,
+          "2025-03": 0.0464,
+          "2025-04": 0.0538,
+          "2025-05": 0.0503,
+          "2025-06": 0.0545,
+          "2025-07": 0.056,
+          "2025-08": 0.0407,
+          "2025-09": 0.0485,
+          "2025-10": 0.0518,
+          "2025-11": 0.0571,
+          "2025-12": 0.0557,
+          "2026-01": 0.0664,
+          "2026-02": 0.0373,
+          "2026-03": 0.0646,
+          "2026-04": 0.0662,
+          "2026-05": 0.0519,
+          "2026-06": 0.0198,
+          "2026-07": 0.0397,
+          "2026-08": 0.0527
+        }
+      },
+      "tier_mix_profile": {
+        "baseline_share_by_tier": {
+          "High": 0.7106,
+          "Mid": 0.1721,
+          "Low": 0.1173
+        },
+        "recent_share_by_tier": {
+          "High": 0.6321,
+          "Mid": 0.2187,
+          "Low": 0.1492
+        },
+        "high_tier_share_change_pp": -7.85,
+        "monthly_high_tier_share_series": {
+          "2024-09": 0.7232,
+          "2024-10": 0.7318,
+          "2024-11": 0.7241,
+          "2024-12": 0.7279,
+          "2025-01": 0.7234,
+          "2025-02": 0.7352,
+          "2025-03": 0.7285,
+          "2025-04": 0.7366,
+          "2025-05": 0.731,
+          "2025-06": 0.7345,
+          "2025-07": 0.7242,
+          "2025-08": 0.7213,
+          "2025-09": 0.7187,
+          "2025-10": 0.7203,
+          "2025-11": 0.6937,
+          "2025-12": 0.6712,
+          "2026-01": 0.6353,
+          "2026-02": 0.64,
+          "2026-03": 0.6291,
+          "2026-04": 0.6248,
+          "2026-05": 0.6242,
+          "2026-06": 0.6363,
+          "2026-07": 0.6373,
+          "2026-08": 0.6394
+        }
+      },
+      "category_monthly_revenue": {
+        "Cleaning & Maintenance": {
+          "2024-09": 7145.12,
+          "2024-10": 6591.0,
+          "2024-11": 7508.7,
+          "2024-12": 7158.65,
+          "2025-01": 7482.78,
+          "2025-02": 7707.52,
+          "2025-03": 6868.95,
+          "2025-04": 6548.78,
+          "2025-05": 6444.34,
+          "2025-06": 6631.04,
+          "2025-07": 6997.8,
+          "2025-08": 6946.05,
+          "2025-09": 7164.96,
+          "2025-10": 7537.12,
+          "2025-11": 7325.61,
+          "2025-12": 7270.01,
+          "2026-01": 7728.0,
+          "2026-02": 6985.23,
+          "2026-03": 6313.0,
+          "2026-04": 6897.9,
+          "2026-05": 6528.08,
+          "2026-06": 6791.31,
+          "2026-07": 7030.76,
+          "2026-08": 7456.2
+        },
+        "Consumables": {
+          "2024-09": 14869.93,
+          "2024-10": 15730.4,
+          "2024-11": 16674.59,
+          "2024-12": 14384.0,
+          "2025-01": 17212.05,
+          "2025-02": 14359.05,
+          "2025-03": 16079.86,
+          "2025-04": 15988.86,
+          "2025-05": 14817.76,
+          "2025-06": 17265.14,
+          "2025-07": 16473.0,
+          "2025-08": 14462.56,
+          "2025-09": 15546.03,
+          "2025-10": 17025.12,
+          "2025-11": 16764.26,
+          "2025-12": 15451.78,
+          "2026-01": 17196.96,
+          "2026-02": 15346.68,
+          "2026-03": 15479.4,
+          "2026-04": 16827.84,
+          "2026-05": 15010.92,
+          "2026-06": 16852.48,
+          "2026-07": 16972.8,
+          "2026-08": 15702.12
+        },
+        "Diagnostic Equipment": {
+          "2024-09": 69567.6,
+          "2024-10": 71571.88,
+          "2024-11": 71065.92,
+          "2024-12": 73292.48,
+          "2025-01": 59024.43,
+          "2025-02": 70394.34,
+          "2025-03": 72023.5,
+          "2025-04": 72728.4,
+          "2025-05": 60931.71,
+          "2025-06": 70554.34,
+          "2025-07": 73495.86,
+          "2025-08": 69777.48,
+          "2025-09": 61749.45,
+          "2025-10": 71412.06,
+          "2025-11": 0.0,
+          "2025-12": 0.0,
+          "2026-01": 0.0,
+          "2026-02": 0.0,
+          "2026-03": 0.0,
+          "2026-04": 0.0,
+          "2026-05": 0.0,
+          "2026-06": 0.0,
+          "2026-07": 0.0,
+          "2026-08": 0.0
+        },
+        "Electrical Accessories": {
+          "2024-09": 20310.92,
+          "2024-10": 21011.2,
+          "2024-11": 18775.15,
+          "2024-12": 21746.06,
+          "2025-01": 18914.34,
+          "2025-02": 18901.44,
+          "2025-03": 21981.4,
+          "2025-04": 18366.12,
+          "2025-05": 19951.14,
+          "2025-06": 21078.2,
+          "2025-07": 20663.6,
+          "2025-08": 21522.06,
+          "2025-09": 19073.68,
+          "2025-10": 19907.84,
+          "2025-11": 20217.9,
+          "2025-12": 19350.72,
+          "2026-01": 19055.34,
+          "2026-02": 20602.3,
+          "2026-03": 19163.88,
+          "2026-04": 18313.25,
+          "2026-05": 19922.76,
+          "2026-06": 19953.92,
+          "2026-07": 18137.47,
+          "2026-08": 20557.8
+        },
+        "Fasteners & Fittings": {
+          "2024-09": 24930.85,
+          "2024-10": 22398.86,
+          "2024-11": 27338.85,
+          "2024-12": 25240.74,
+          "2025-01": 23603.72,
+          "2025-02": 24461.46,
+          "2025-03": 26459.4,
+          "2025-04": 23967.9,
+          "2025-05": 25001.19,
+          "2025-06": 27166.4,
+          "2025-07": 23481.0,
+          "2025-08": 26210.1,
+          "2025-09": 26990.4,
+          "2025-10": 23568.12,
+          "2025-11": 25588.95,
+          "2025-12": 24980.76,
+          "2026-01": 26464.6,
+          "2026-02": 27158.4,
+          "2026-03": 27880.23,
+          "2026-04": 24748.5,
+          "2026-05": 22853.34,
+          "2026-06": 26659.8,
+          "2026-07": 27994.05,
+          "2026-08": 26799.04
+        },
+        "Power Tools": {
+          "2024-09": 84799.1,
+          "2024-10": 100238.11,
+          "2024-11": 83772.96,
+          "2024-12": 96312.15,
+          "2025-01": 98023.68,
+          "2025-02": 99453.62,
+          "2025-03": 86934.96,
+          "2025-04": 101406.84,
+          "2025-05": 98805.49,
+          "2025-06": 99942.01,
+          "2025-07": 81109.86,
+          "2025-08": 87906.0,
+          "2025-09": 90851.7,
+          "2025-10": 87891.0,
+          "2025-11": 88467.2,
+          "2025-12": 93929.44,
+          "2026-01": 95021.6,
+          "2026-02": 93946.35,
+          "2026-03": 82483.32,
+          "2026-04": 83000.28,
+          "2026-05": 86048.6,
+          "2026-06": 102338.74,
+          "2026-07": 92979.15,
+          "2026-08": 98781.6
+        },
+        "Precision Hardware": {
+          "2024-09": 42320.64,
+          "2024-10": 38537.2,
+          "2024-11": 34941.6,
+          "2024-12": 41600.64,
+          "2025-01": 41403.78,
+          "2025-02": 42237.42,
+          "2025-03": 37068.71,
+          "2025-04": 43074.64,
+          "2025-05": 40197.72,
+          "2025-06": 41617.28,
+          "2025-07": 41073.66,
+          "2025-08": 40622.5,
+          "2025-09": 42531.06,
+          "2025-10": 42027.15,
+          "2025-11": 37462.5,
+          "2025-12": 44078.56,
+          "2026-01": 41740.71,
+          "2026-02": 42310.16,
+          "2026-03": 41383.65,
+          "2026-04": 40951.28,
+          "2026-05": 38059.84,
+          "2026-06": 43791.04,
+          "2026-07": 37525.67,
+          "2026-08": 41800.08
+        },
+        "Safety Basics": {
+          "2024-09": 8042.64,
+          "2024-10": 8155.34,
+          "2024-11": 7915.6,
+          "2024-12": 7881.88,
+          "2025-01": 7415.54,
+          "2025-02": 7425.33,
+          "2025-03": 7214.55,
+          "2025-04": 7329.92,
+          "2025-05": 8580.4,
+          "2025-06": 8321.67,
+          "2025-07": 8519.22,
+          "2025-08": 8415.86,
+          "2025-09": 8112.62,
+          "2025-10": 8508.58,
+          "2025-11": 7307.19,
+          "2025-12": 7136.32,
+          "2026-01": 8186.16,
+          "2026-02": 8303.28,
+          "2026-03": 8086.34,
+          "2026-04": 8535.0,
+          "2026-05": 7390.72,
+          "2026-06": 8001.7,
+          "2026-07": 7942.2,
+          "2026-08": 8449.56
+        }
+      },
+      "account_manager_tenures": [
+        {
+          "account_manager": "Rohit Sharma",
+          "from_month": "2024-09"
+        }
+      ]
+    },
+    "model_opinion": {
+      "available": true,
+      "p_flag": 0.964,
+      "p_no_flag": 0.036,
+      "p_defer": 0.0,
+      "leaning": "leakage",
+      "leaning_outcome": "FLAG",
+      "decisive": true,
+      "top_drivers": [
+        {
+          "feature": "margin_change_pp",
+          "label": "margin change (pp)",
+          "value": -2.02,
+          "effect_on_leaning": 0.068,
+          "direction": "supports"
+        },
+        {
+          "feature": "p_tier_mix_halves",
+          "label": "p-value, high-tier share (half vs half)",
+          "value": 0.001,
+          "effect_on_leaning": 0.035,
+          "direction": "supports"
+        },
+        {
+          "feature": "basket_width_pct_change",
+          "label": "basket width change",
+          "value": -0.2129,
+          "effect_on_leaning": -0.016,
+          "direction": "argues against"
+        },
+        {
+          "feature": "p_margin",
+          "label": "p-value, margin (recent window)",
+          "value": 0.01,
+          "effect_on_leaning": 0.014,
+          "direction": "supports"
+        }
+      ],
+      "drivers_note": null
+    }
+  },
+  "_run": {
+    "choice": "Proprietary",
+    "model": "claude-sonnet-5",
+    "provider": "Anthropic"
+  }
+}

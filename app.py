@@ -63,6 +63,7 @@ from ui.compare import render_comparison
 from ui.decide import render_decision, render_early_warning, render_no_lever, render_options
 from ui.palette import active
 from ui.dashboard import render_account_dashboard
+from ui.lifetime import render_lifetime_account, render_lifetime_book
 from ui import theme
 from ui.verdict import render_verdict, render_verdict_header
 from validation.answer_key import AnswerKeyUnavailable, load_answer_key, score_report
@@ -128,6 +129,22 @@ PAGES = [
         "caption": (
             "A straight call from the AI — leakage, a temporary dip, healthy, or too thin to "
             "decide — with the figures behind it and what to do."
+        ),
+    },
+    {
+        "key": "cltv",
+        "icon": ":material/savings:",
+        "number": 3,
+        "label": "Lifetime value",
+        "title": "What is this account worth over time?",
+        "caption": (
+            "Expected value over the next 12 and 24 months on the account's baseline path and "
+            "on its current path. The gap is what the leak costs over a customer's lifetime."
+        ),
+        "list_title": "What is the book worth over time?",
+        "list_caption": (
+            "Every account ranked by lifetime value at risk over 24 months. Open a row for the "
+            "account's own projection."
         ),
     },
     # AryaChat is a floating bottom-right widget (see render_arya_widget), not a
@@ -610,6 +627,13 @@ if st.session_state.get("home_page") not in {p["key"] for p in PAGES}:
     # Also catches a browser session still pointing at a page that has since
     # been hidden, which would otherwise fail the page_spec lookup below.
     st.session_state["home_page"] = "data"
+# A row link from a book table is a real navigation (`?account=…&page=…`),
+# which can start a fresh session whose default page is Detect. Honouring
+# `page` here is what lets the Lifetime value book open its own account
+# page rather than the dashboard.
+if st.query_params.get("page") in {p["key"] for p in PAGES}:
+    st.session_state["home_page"] = st.query_params["page"]
+    del st.query_params["page"]
 if st.session_state.get("model_choice") not in MODEL_CHOICES:
     st.session_state["model_choice"] = DEFAULT_MODEL_CHOICE
 if "selected_account" not in st.session_state:
@@ -683,7 +707,7 @@ if report is not None:
 # the finished report; hashing and assembling the pack on those clicks was
 # wasted work that showed up as lag. The account book is its own cached table.
 needs_pack = account_id is not None and (
-    current_page in ("data", "verdict")
+    current_page in ("data", "verdict", "cltv")
     or (report is not None and "evidence_timeline" not in report)
 )
 pack = cached_evidence_pack(df, account_id) if needs_pack else None
@@ -1025,8 +1049,36 @@ def render_arya_widget() -> None:
     )
 
 
+def render_cltv_page() -> None:
+    """Lifetime value: one account's projection, or the whole book ranked by
+    value at risk when no account is open. Deterministic; reads the packs
+    the other pages already cache."""
+    if account_id:
+        _account_identity_bar()
+        theme.page(page_spec["title"], page_spec["caption"])
+        render_lifetime_account(pack)
+        return
+    theme.page(page_spec["list_title"], page_spec["list_caption"])
+    _, info = st.columns([4, 1])
+    with info:
+        _file_info_button()
+    rows = []
+    for aid in sorted(df["account_id"].unique()):
+        account_pack = cached_evidence_pack(df, aid)
+        rows.append({"account_id": aid, "account_name": account_pack.get("account_name"),
+                     "lifetime_value": account_pack.get("_lifetime_value")})
+    opened = st.query_params.get("account")
+    if opened and opened in set(df["account_id"].unique()):
+        del st.query_params["account"]
+        _open_account(opened)
+        st.rerun()
+    render_lifetime_book(rows)
+
+
 if current_page == "verdict":
     render_verdict_page()
+elif current_page == "cltv":
+    render_cltv_page()
 # elif current_page == "score":
 #     render_score_page()
 # elif current_page == "compare":

@@ -230,9 +230,11 @@ def test_book_table_shows_confidence_columns(catalogue):
         {FLAGSHIP_LEAK: {"confidence": "high"}},
     )
     html = _book_table_html(framed)
-    assert "Probability of leakage" in html
+    assert "Predicted revenue at risk" in html
+    assert "Probability of leakage" not in html, "the classifier's number left the book on Sept 8"
     assert "AI agent confidence" not in html, "the AI's level is on the verdict banner, not in the book"
-    assert "rl-book-bar" in html
+    # ACC-101's 24-month lifetime value at risk, as rupees.
+    assert "₹715,819" in html
 
 
 def test_book_table_shows_identity_signal_verdict_and_confidences_only(catalogue):
@@ -241,7 +243,7 @@ def test_book_table_shows_identity_signal_verdict_and_confidences_only(catalogue
     report, under the "Revenue leakage" header: Detected / Not detected /
     Deferred / Not analysed."""
     assert [label for _, label in DISPLAY_COLUMNS] == [
-        "Account", "Name", "Region", "Revenue", "Revenue leakage", "Probability of leakage",
+        "Account", "Name", "Region", "Revenue", "Revenue leakage", "Predicted revenue at risk",
     ]
     framed = apply_investigation_cache(catalogue.head(3), {
         "ACC-101": {"verdict": "leakage_detected", "confidence": "high"},

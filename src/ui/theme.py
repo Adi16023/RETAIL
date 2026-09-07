@@ -758,6 +758,7 @@ hr, [data-testid="stDivider"] {{
 }}
 [class*="st-key-navpage-data"] button::before {{ content: "1"; }}
 [class*="st-key-navpage-verdict"] button::before {{ content: "2"; }}
+[class*="st-key-navpage-cltv"] button::before {{ content: "3"; }}
 [class*="st-key-navpage-score"] button::before {{ content: "3"; }}
 [class*="st-key-navpage-compare"] button::before {{ content: "3"; }}
 [class*="st-key-navpage-"] button [data-testid="stIconMaterial"] {{

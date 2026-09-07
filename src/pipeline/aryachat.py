@@ -129,7 +129,8 @@ products -> get_product_changes (what moved) or get_product_revenue (what they b
 in a month or the trend -> get_monthly_table; HOW they order (cadence, basket, individual orders) \
 -> get_orders; WHAT they buy by category -> get_category_mix; WHETHER a dip is seasonal, recovered, \
 a data gap or a bulk month -> get_ruled_out_checks; WHAT could be done and what it is worth -> \
-get_priced_options; WHY the verdict -> get_account_brief. When asked which products "dropped", \
+get_priced_options; WHAT the account is worth over the next 12 or 24 months, or what the leak \
+costs over its lifetime -> get_lifetime_value; WHY the verdict -> get_account_brief. When asked which products "dropped", \
 report BOTH the products that stopped and the ones that declined, each with what it was worth per \
 month before and after.
 
@@ -506,6 +507,8 @@ PATTERN_TOOLS = [
                   "The six headline tiles — revenue per month, margin rate, High-tier share, average discount, orders per month, lines per order — each as baseline, recent (last 6 months) and change."),
     _account_tool("get_ruled_out_checks",
                   "The harmless-explanation checks the analysis ran for this account: was the dip seasonal (same months last year), has it already recovered, months with no orders, one-off bulk months, returns, which way the product mix moved, whether the account manager changed. Use for 'is this seasonal', 'could this be a data problem', 'is it just a big order'."),
+    _account_tool("get_lifetime_value",
+                  "The account's customer lifetime value: expected orders and months of continued buying over the next 12 and 24 months (a BG/NBD model fitted on the whole book), margin per month in the baseline period and recently, lifetime value on the baseline path and on the current path, the value at risk between them, and the SAME split by category and by product (each line's value per month before and now, baseline path, current path, value at risk). Use for 'what is this account worth', 'how much will the leak cost over time', 'which category or product is costing the most lifetime value'. Reports insufficient_history for thin accounts."),
     _account_tool("get_priced_options",
                   "Every intervention the pipeline could price for this account — what each would recover per month and over 12 months, the resulting margin rate or break-even tolerance, and whether it restores the account to healthy. Empty when nothing has been lost yet or the account is healthy. Use for 'what could we do', 'what is a win-back worth'."),
 ]
@@ -788,6 +791,11 @@ def _execute_chat_tool(df: pd.DataFrame, pack_for, report_for, name: str, tool_i
         return kpis_from_pack(pack), [account_id]
     if name == "get_ruled_out_checks":
         return _tool_get_ruled_out_checks(pack), [account_id]
+    if name == "get_lifetime_value":
+        block = pack.get("_lifetime_value") or {"status": "insufficient_history", "reason": "not computed"}
+        # The chart series and the fit parameters are for the page; the chat
+        # quotes figures, so they only cost tokens here.
+        return {k: v for k, v in block.items() if k not in ("cumulative_by_month", "book_fit")}, [account_id]
     if name == "get_priced_options":
         impact = (report_for(account_id) or {}).get("financial_impact")
         options = price_options(pack, impact)

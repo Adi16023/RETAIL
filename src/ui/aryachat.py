@@ -48,6 +48,7 @@ TOOL_LABELS = {
     "get_kpis": "headline tiles",
     "get_ruled_out_checks": "harmless-explanation checks",
     "get_priced_options": "priced options",
+    "get_lifetime_value": "lifetime value",
 }
 
 STREAM_FRAME_SECONDS = 0.05

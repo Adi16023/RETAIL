@@ -47,7 +47,11 @@ DISPLAY_COLUMNS = [
     ("region", "Region"),
     ("revenue_label", "Revenue"),
     ("verdict_label", "Revenue leakage"),
-    ("leak_probability", "Probability of leakage"),
+    # The lifetime value at risk over 24 months (pipeline.lifetime), labelled
+    # as the user asked. It is measured in margin where the file has margin;
+    # the hover on the cell says so. Replaced the classifier's probability
+    # column on Sept 8 at the user's request; that field stays in the frame.
+    ("predicted_at_risk", "Predicted revenue at risk"),
 ]
 # The AI's own High / Medium / Low still rides in the frame as
 # `agent_confidence` (the verdict banner shows it); dropped from the table
@@ -108,6 +112,26 @@ def _outcome_probabilities(opinion: dict | None, probabilities: dict | None) -> 
             "FLAG": opinion.get("p_flag"), "NO_FLAG": opinion.get("p_no_flag"), "DEFER": opinion.get("p_defer"),
         }
     return dict(probabilities or {})
+
+
+def _lifetime_at_risk(pack: dict, horizon: str = "24") -> float | None:
+    """The lifetime value at risk over the horizon from the pack's
+    `_lifetime_value` block; None when the account could not be projected."""
+    block = pack.get("_lifetime_value") or {}
+    if block.get("status") != "scored":
+        return None
+    return block.get("horizons_months", {}).get(horizon, {}).get("value_at_risk")
+
+
+def _at_risk_html(row) -> str:
+    """The 24-month lifetime value at risk as rupees, with what it is
+    measured in on hover; a dash for an account that cannot be projected."""
+    value = row.get("predicted_at_risk")
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return '<span title="Not enough history to project">—</span>'
+    basis = row.get("predicted_at_risk_basis") or "margin"
+    title = f"Lifetime value at risk over 24 months, measured in {basis}: baseline path minus current path"
+    return f'<span title="{escape(title, quote=True)}">{escape(f"₹{value:,.0f}")}</span>'
 
 
 def _leak_probability_label(
@@ -220,6 +244,8 @@ def account_row(pack: dict) -> dict:
         "verdict_label": _NOT_ANALYSED[0],
         "verdict_role": _NOT_ANALYSED[1],
         "agent_confidence": None,
+        "predicted_at_risk": _lifetime_at_risk(pack),
+        "predicted_at_risk_basis": (pack.get("_lifetime_value") or {}).get("value_basis"),
         "leak_probability": _leak_probability_label(
             pack.get("model_opinion"),
             probabilities=(
@@ -311,7 +337,7 @@ def _unique_values(catalogue: pd.DataFrame, column: str) -> list[str]:
     return sorted(value for value in values.unique() if value and value != "—")
 
 
-_MONEY_COLUMNS = frozenset({"revenue_recent"})
+_MONEY_COLUMNS = frozenset({"revenue_recent", "predicted_at_risk"})
 _RATIO_COLUMNS = frozenset({
     "revenue_change_pct", "margin_recent_pct",
     "discount_recent_pct", "high_tier_recent_pct",
@@ -469,6 +495,8 @@ def _book_table_html(catalogue: pd.DataFrame) -> str:
                 inner = _revenue_status_html(row)
             elif source == "verdict_label":
                 inner = _verdict_html(row)
+            elif source == "predicted_at_risk":
+                inner = _at_risk_html(row)
             elif source == "leak_probability":
                 inner = _leak_probability_html(row[source])
             elif source == "agent_confidence":

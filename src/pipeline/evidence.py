@@ -37,6 +37,7 @@ from .detect import (
     tier_shift,
 )
 from .ingest import account_sufficiency, analysis_dimensions
+from .lifetime import account_lifetime_value
 from .significance import significance_tests
 
 
@@ -164,6 +165,15 @@ def build_evidence_pack(df: pd.DataFrame, account_id: str) -> dict:
         # shift is real; above it, the threshold detector's status describes
         # something the account's ordinary lumpiness could have produced.
         "significance": significance,
+        # What the account is expected to be worth over 12 and 24 months on
+        # its baseline behaviour and on its current path, and the gap. A
+        # deterministic projection (see lifetime.py); insufficient_history
+        # on thin accounts, never a number. Underscore-prefixed on purpose:
+        # it is a downstream read for the Lifetime value page and the chat,
+        # and a projection of the leak's cost must never feed the verdict —
+        # so it is stripped from the Stage 4 prompt like the other display
+        # keys, and the tuned investigator sees exactly what it saw before.
+        "_lifetime_value": account_lifetime_value(df, account_id),
         # Underscore-prefixed keys are for OUTPUT SURFACES ONLY (the PDF
         # report's tables and timeline) and are stripped before the pack is
         # serialized into the Stage 4 prompt — see agent.pack_for_prompt.

@@ -65,16 +65,52 @@ def header(title: str, kicker: str = "") -> None:
     )
 
 
-def sidebar_brand(title: str, kicker: str = "") -> None:
+def sidebar_brand(title: str, kicker: str = "", *, on_home=None) -> None:
     # A <p>, not <header>/<h1> — Streamlit's markdown sanitizer strips those
     # and dumps the leftovers as visible source. Logo sits above the product
-    # name, matching youkti-app's header wordmark.
+    # name, matching youkti-app's header wordmark. When `on_home` is set the
+    # logo is a button that returns to the account book.
     logo = _youkti_logo_uri()
+    kicker_html = f'<p class="rl-kicker">{escape(kicker)}</p>' if kicker else ""
+    if on_home is not None and logo:
+        st.markdown(
+            f'<style>'
+            f'[class*="st-key-sidebar-youkti-home"] button {{'
+            f'background: url("{logo}") left center / auto 1.75rem no-repeat !important;'
+            f'background-color: transparent !important;'
+            f'border: none !important; box-shadow: none !important;'
+            f'color: transparent !important; min-height: 2.35rem !important;'
+            f'width: 7.5rem !important; max-width: 7.5rem !important;'
+            f'padding: 0 !important; justify-content: flex-start !important;'
+            f'}}'
+            f'[class*="st-key-sidebar-youkti-home"] button * {{'
+            f'visibility: hidden !important;'
+            f'}}'
+            f'[class*="st-key-sidebar-youkti-home"] button:hover {{'
+            f'background-color: transparent !important; opacity: 0.82 !important;'
+            f'border: none !important; box-shadow: none !important;'
+            f'}}'
+            f'</style>',
+            unsafe_allow_html=True,
+        )
+        st.button(
+            "Youkti",
+            key="sidebar-youkti-home",
+            type="tertiary",
+            on_click=on_home,
+            help="Back to all accounts",
+        )
+        st.markdown(
+            f'<div class="rl-side-brand">{kicker_html}'
+            f'<p class="rl-side-title">{escape(title)}</p></div>',
+            unsafe_allow_html=True,
+        )
+        return
+
     logo_html = (
         f'<img class="rl-side-logo" src="{logo}" alt="Youkti" />'
         if logo else ""
     )
-    kicker_html = f'<p class="rl-kicker">{escape(kicker)}</p>' if kicker else ""
     st.markdown(
         f'<div class="rl-side-brand">{logo_html}{kicker_html}'
         f'<p class="rl-side-title">{escape(title)}</p></div>',
@@ -283,6 +319,37 @@ section.main > div {{
   height: 100vh !important;
   padding-top: 0 !important;
   margin-top: 0 !important;
+}}
+/* Account book home — full-bleed table, no left rail until a row is opened. */
+.stApp:has(.rl-book-home) [data-testid="stSidebar"],
+[data-testid="stApp"]:has(.rl-book-home) [data-testid="stSidebar"],
+.stApp:has(.rl-book-home) [data-testid="stSidebarCollapsedControl"],
+[data-testid="stApp"]:has(.rl-book-home) [data-testid="stSidebarCollapsedControl"],
+.stApp:has(.rl-book-home) [data-testid="collapsedControl"],
+[data-testid="stApp"]:has(.rl-book-home) [data-testid="collapsedControl"] {{
+  display: none !important;
+  visibility: hidden !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+}}
+.stApp:has(.rl-book-home) [data-testid="stAppViewContainer"],
+[data-testid="stApp"]:has(.rl-book-home) [data-testid="stAppViewContainer"],
+.stApp:has(.rl-book-home) [data-testid="stMain"],
+[data-testid="stApp"]:has(.rl-book-home) [data-testid="stMain"],
+.stApp:has(.rl-book-home) .main,
+[data-testid="stApp"]:has(.rl-book-home) .main {{
+  margin-left: 0 !important;
+  max-width: 100% !important;
+  width: 100% !important;
+}}
+.rl-book-home {{
+  display: none !important;
 }}
 [data-testid="stSidebar"] > div,
 [data-testid="stSidebar"] [data-testid="stSidebarContent"] {{

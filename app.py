@@ -674,29 +674,40 @@ choice_label = st.session_state["model_choice"]
 model_id = MODEL_CHOICES[choice_label]["model"]
 book_fingerprint = cached_book_fingerprint(df)
 
-with st.sidebar:
-    theme.sidebar_brand("Revenue Leakage Investigator")
-    sync_chat_nav(book_fingerprint)
-    current_page = st.session_state["home_page"]
-    for page in PAGES:
-        st.button(
-            page["label"],
-            key=f"navpage-{page['key']}",
-            type="primary" if current_page == page["key"] else "secondary",
-            use_container_width=True,
-            on_click=_set_home_page,
-            args=(page["key"],),
-        )
-    st.divider()
-    open_data_source = st.button(
-        "Choose your data source", icon=":material/folder_open:", use_container_width=True,
-        key="sidebar-source",
+# Book home is full-bleed: no sidebar until an account is opened.
+# Account pages keep Detect / Investigate in the left rail.
+sync_chat_nav(book_fingerprint)
+if account_id is None:
+    st.markdown(
+        '<div class="rl-book-home" aria-hidden="true"></div>',
+        unsafe_allow_html=True,
     )
-
-# Opened from the main script, not inside the sidebar — otherwise Streamlit
-# parks the dialog over the left column instead of the centre of the page.
-if open_data_source:
-    show_data_source_modal()
+else:
+    with st.sidebar:
+        theme.sidebar_brand(
+            "Revenue Leakage Investigator",
+            on_home=_back_to_account_book,
+        )
+        current_page = st.session_state["home_page"]
+        for page in PAGES:
+            st.button(
+                page["label"],
+                key=f"navpage-{page['key']}",
+                type="primary" if current_page == page["key"] else "secondary",
+                use_container_width=True,
+                on_click=_set_home_page,
+                args=(page["key"],),
+            )
+        # Data source picker — hidden for now; app uses the Meridian reference
+        # file (or whatever was already uploaded). Restore with show_data_source_modal.
+        # st.divider()
+        # if st.button(
+        #     "Choose your data source",
+        #     icon=":material/folder_open:",
+        #     use_container_width=True,
+        #     key="sidebar-source",
+        # ):
+        #     show_data_source_modal()
 
 fingerprint = cached_account_fingerprint(df, account_id) if account_id else None
 report = cache.load(fingerprint, account_id, model_id) if account_id else None
@@ -761,6 +772,14 @@ def _need_an_account() -> None:
 def render_data_page() -> None:
     if account_id is None:
         theme.page(page_spec["list_title"], page_spec["list_caption"])
+        # Data source on the book — hidden for now (same as the sidebar entry).
+        # if st.button(
+        #     "Choose your data source",
+        #     icon=":material/folder_open:",
+        #     type="tertiary",
+        #     key="book-source",
+        # ):
+        #     show_data_source_modal()
         book = cached_account_catalogue(df)
         remembered = st.session_state.setdefault("investigation_reports", {})
         catalogue = apply_investigation_cache(

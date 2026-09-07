@@ -543,7 +543,9 @@ def _arya_fragment(
                     )
 
             with right:
-                with st.container(key="arya_right"):
+                # Separate keys so CSS can pin the composer when chatting and
+                # keep it centered with the hero when idle.
+                with st.container(key="arya_right_idle" if idle else "arya_right_chat"):
                     if not fullscreen:
                         st.markdown(
                             '<p class="rl-arya-widget-title">Arya</p>',

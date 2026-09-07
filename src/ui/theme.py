@@ -1308,7 +1308,8 @@ hr, [data-testid="stDivider"] {{
   width: 100% !important;
   min-height: 2.35rem !important;
 }}
-/* Right pane — fixed; thread scrolls; composer pinned to the bottom. */
+/* Right pane — fixed. Idle: hero + chatbar centered. Chatting: thread
+   scrolls, chatbar pinned to the bottom. */
 [class*="st-key-arya_right"] {{
   padding: 0.85rem 1.15rem 0.9rem !important;
   box-sizing: border-box !important;
@@ -1327,6 +1328,7 @@ hr, [data-testid="stDivider"] {{
   overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
+  box-sizing: border-box !important;
 }}
 [class*="st-key-arya_full"] [class*="st-key-arya_right"] > div,
 [class*="st-key-arya_full"] [class*="st-key-arya_right"] > div > [data-testid="stVerticalBlock"] {{
@@ -1343,6 +1345,46 @@ hr, [data-testid="stDivider"] {{
   max-width: 64rem !important;
   margin-left: auto !important;
   margin-right: auto !important;
+}}
+/* Idle (hero / arya_right_idle): keep the prompt + chatbar as a centered cluster. */
+[class*="st-key-arya_full"] [class*="st-key-arya_right_idle"] > div > [data-testid="stVerticalBlock"],
+[class*="st-key-arya_full"] [class*="st-key-arya_right"]:has(.rl-arya-hero) > div > [data-testid="stVerticalBlock"] {{
+  justify-content: center !important;
+}}
+[class*="st-key-arya_full"] [class*="st-key-arya_right_idle"] [class*="st-key-arya_thread"],
+[class*="st-key-arya_full"] [class*="st-key-arya_right"]:has(.rl-arya-hero) [class*="st-key-arya_thread"] {{
+  flex: 0 0 auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}}
+[class*="st-key-arya_full"] [class*="st-key-arya_right_idle"] [class*="st-key-arya_composer"],
+[class*="st-key-arya_full"] [class*="st-key-arya_right"]:has(.rl-arya-hero) [class*="st-key-arya_composer"] {{
+  flex: 0 0 auto !important;
+  margin-top: 0.35rem !important;
+}}
+[class*="st-key-arya_full"] [class*="st-key-arya_right_idle"] .rl-arya-hero,
+[class*="st-key-arya_full"] [class*="st-key-arya_right"]:has(.rl-arya-hero) .rl-arya-hero {{
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 1.25rem 1.5rem 0.5rem !important;
+}}
+/* Chatting (arya_right_chat): thread fills and scrolls; chatbar stays at the bottom. */
+[class*="st-key-arya_full"] [class*="st-key-arya_right_chat"] [class*="st-key-arya_thread"],
+[class*="st-key-arya_full"] [class*="st-key-arya_right"]:not(:has(.rl-arya-hero)):not([class*="st-key-arya_right_idle"]) [class*="st-key-arya_thread"] {{
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}}
+[class*="st-key-arya_full"] [class*="st-key-arya_right_chat"] [class*="st-key-arya_composer"],
+[class*="st-key-arya_full"] [class*="st-key-arya_right"]:not(:has(.rl-arya-hero)):not([class*="st-key-arya_right_idle"]) [class*="st-key-arya_composer"] {{
+  flex: 0 0 auto !important;
+  margin-top: auto !important;
+  background: #fff !important;
+  z-index: 2 !important;
+  padding-top: 0.5rem !important;
+  padding-bottom: 0.15rem !important;
 }}
 .rl-arya-widget-title {{
   margin: 0;
@@ -1373,11 +1415,6 @@ hr, [data-testid="stDivider"] {{
   font-size: 0.95rem;
   color: #64748b;
 }}
-[class*="st-key-arya_full"] .rl-arya-hero {{
-  min-height: 12rem;
-  height: 100%;
-  padding: 2.5rem 1.5rem;
-}}
 [class*="st-key-arya_full"] .rl-arya-hero-title {{
   font-size: clamp(1.4rem, 2.5vw, 1.9rem);
 }}
@@ -1386,21 +1423,29 @@ hr, [data-testid="stDivider"] {{
   overflow-y: auto !important;
   padding: 0.15rem 0.1rem 0.35rem !important;
 }}
-[class*="st-key-arya_full"] [class*="st-key-arya_thread"] {{
-  flex: 1 1 auto !important;
-  max-height: none !important;
-  min-height: 0 !important;
-  overflow-y: auto !important;
-}}
 [class*="st-key-arya_composer"] {{
   padding-top: 0.35rem !important;
 }}
-[class*="st-key-arya_full"] [class*="st-key-arya_composer"] {{
+/* Dock while chatting: same pin — thread scrolls, bar stays down. */
+[class*="st-key-arya_dock"] [class*="st-key-arya_right_chat"] > div > [data-testid="stVerticalBlock"],
+[class*="st-key-arya_dock"] [class*="st-key-arya_right"]:not(:has(.rl-arya-hero)) > div > [data-testid="stVerticalBlock"] {{
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+  max-height: min(26rem, calc(100vh - 10rem)) !important;
+}}
+[class*="st-key-arya_dock"] [class*="st-key-arya_right_chat"] [class*="st-key-arya_thread"],
+[class*="st-key-arya_dock"] [class*="st-key-arya_right"]:not(:has(.rl-arya-hero)) [class*="st-key-arya_thread"] {{
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+}}
+[class*="st-key-arya_dock"] [class*="st-key-arya_right_chat"] [class*="st-key-arya_composer"],
+[class*="st-key-arya_dock"] [class*="st-key-arya_right"]:not(:has(.rl-arya-hero)) [class*="st-key-arya_composer"] {{
   flex: 0 0 auto !important;
   margin-top: auto !important;
   background: #fff !important;
-  z-index: 2 !important;
-  padding-bottom: 0.25rem !important;
 }}
 [class*="st-key-arya_composer"] [data-testid="stForm"] {{
   border: none !important;

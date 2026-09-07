@@ -1069,9 +1069,10 @@ hr, [data-testid="stDivider"] {{
 }}
 
 
-/* Floating AryaChat — keep this CSS minimal. Streamlit's wrappers fight
-   height:100% + absolute pinning; a forced tall dock left a white gap under
-   the chat bar. Size the dock to its content instead (max-height only). */
+/* Floating AryaChat
+   Dock: content-sized popup, bottom-right.
+   Fullscreen: simple scrollable page — no height:100% chains (those clipped
+   Recent chats + composer under an empty header). */
 [class*="st-key-arya_fab"] {{
   position: fixed !important;
   right: 1.25rem !important;
@@ -1103,7 +1104,7 @@ hr, [data-testid="stDivider"] {{
   background: #fff !important;
   border: 1px solid #cbd5e1 !important;
   box-shadow: 0 18px 50px rgb(15 23 42 / 0.22) !important;
-  overflow: hidden !important;
+  overflow: auto !important;
   padding: 0 !important;
   margin: 0 !important;
   box-sizing: border-box !important;
@@ -1113,38 +1114,32 @@ hr, [data-testid="stDivider"] {{
   inset: 0 !important;
   width: 100vw !important;
   height: 100vh !important;
-  max-width: 100vw !important;
-  max-height: 100vh !important;
+  max-width: none !important;
+  max-height: none !important;
   z-index: 1200 !important;
   border-radius: 0 !important;
   background: #fff !important;
   border: none !important;
   box-shadow: none !important;
-  overflow: hidden !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
   padding: 0 !important;
   margin: 0 !important;
   box-sizing: border-box !important;
-  display: flex !important;
-  flex-direction: column !important;
+  display: block !important;
 }}
-[class*="st-key-arya_dock"] > div,
 [class*="st-key-arya_full"] > div,
-[class*="st-key-arya_dock"] > div > [data-testid="stVerticalBlock"],
 [class*="st-key-arya_full"] > div > [data-testid="stVerticalBlock"] {{
   width: 100% !important;
-  min-height: 0 !important;
-}}
-[class*="st-key-arya_full"] > div,
-[class*="st-key-arya_full"] > div > [data-testid="stVerticalBlock"] {{
-  height: 100% !important;
-  display: flex !important;
-  flex-direction: column !important;
+  height: auto !important;
+  min-height: 100% !important;
+  display: block !important;
 }}
 [class*="st-key-arya_full"] > div > [data-testid="stVerticalBlock"] > div {{
-  flex: 1 1 auto !important;
-  min-height: 0 !important;
-  height: 100% !important;
-  overflow: hidden !important;
+  flex: none !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
 }}
 .stApp:has([class*="st-key-arya_full"]) [data-testid="stSidebar"],
 [data-testid="stApp"]:has([class*="st-key-arya_full"]) [data-testid="stSidebar"],
@@ -1173,6 +1168,52 @@ hr, [data-testid="stDivider"] {{
   max-width: 100% !important;
   width: 100% !important;
 }}
+/* Header bar */
+[class*="st-key-arya_full_header"] {{
+  width: 100% !important;
+  padding: 0.85rem 1.5rem !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  box-sizing: border-box !important;
+  background: #fff !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 5 !important;
+}}
+[class*="st-key-arya_full_header"] [data-testid="stHorizontalBlock"] {{
+  width: 100% !important;
+  height: auto !important;
+  align-items: center !important;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+}}
+[class*="st-key-arya_full_header"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child {{
+  flex: 1 1 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  height: auto !important;
+}}
+[class*="st-key-arya_full_header"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child {{
+  flex: 0 0 2.75rem !important;
+  width: 2.75rem !important;
+  min-width: 2.75rem !important;
+  max-width: 2.75rem !important;
+  margin-left: auto !important;
+  height: auto !important;
+}}
+[class*="st-key-arya_full_header"] [data-testid="stCustomComponentV2"],
+[class*="st-key-arya_full_header"] iframe {{
+  width: 2.75rem !important;
+  max-width: 2.75rem !important;
+  height: 2.75rem !important;
+  min-height: 2.75rem !important;
+  max-height: 2.75rem !important;
+}}
+[class*="st-key-arya_full_body"] {{
+  width: 100% !important;
+  min-height: calc(100vh - 4.5rem) !important;
+}}
 /* Side-by-side panes */
 [class*="st-key-arya_dock"] [data-testid="stHorizontalBlock"],
 [class*="st-key-arya_full"] [data-testid="stHorizontalBlock"] {{
@@ -1182,10 +1223,7 @@ hr, [data-testid="stDivider"] {{
   align-items: stretch !important;
   width: 100% !important;
   gap: 0 !important;
-}}
-[class*="st-key-arya_full"] [data-testid="stHorizontalBlock"] {{
-  height: 100% !important;
-  min-height: 0 !important;
+  height: auto !important;
 }}
 [class*="st-key-arya_dock"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child {{
   flex: 0 0 11rem !important;
@@ -1193,31 +1231,36 @@ hr, [data-testid="stDivider"] {{
   min-width: 11rem !important;
   max-width: 11rem !important;
 }}
-[class*="st-key-arya_full"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child {{
-  flex: 0 0 17.5rem !important;
-  width: 17.5rem !important;
-  min-width: 17.5rem !important;
-  max-width: 17.5rem !important;
-  height: 100% !important;
-}}
-[class*="st-key-arya_dock"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child,
-[class*="st-key-arya_full"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child {{
+[class*="st-key-arya_dock"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child {{
   flex: 1 1 auto !important;
   min-width: 0 !important;
   width: auto !important;
 }}
-[class*="st-key-arya_full"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child {{
-  height: 100% !important;
+[class*="st-key-arya_full"] [data-testid="stColumn"]:has([class*="st-key-arya_left"]) {{
+  flex: 0 0 17.5rem !important;
+  width: 17.5rem !important;
+  min-width: 17.5rem !important;
+  max-width: 17.5rem !important;
+  min-height: calc(100vh - 4.5rem) !important;
 }}
-[class*="st-key-arya_right"] [data-testid="stHorizontalBlock"] {{
-  height: auto !important;
+[class*="st-key-arya_full"] [data-testid="stColumn"]:has([class*="st-key-arya_right"]) {{
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  width: auto !important;
+  min-height: calc(100vh - 4.5rem) !important;
 }}
-[class*="st-key-arya_right"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child,
-[class*="st-key-arya_right"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child {{
-  flex: unset !important;
+[class*="st-key-arya_composer"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child {{
+  flex: 1 1 auto !important;
   width: auto !important;
   min-width: 0 !important;
   max-width: none !important;
+  height: auto !important;
+}}
+[class*="st-key-arya_composer"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child {{
+  flex: 0 0 2.75rem !important;
+  width: 2.75rem !important;
+  min-width: 2.75rem !important;
+  max-width: 2.75rem !important;
   height: auto !important;
 }}
 /* Left rail */
@@ -1228,25 +1271,9 @@ hr, [data-testid="stDivider"] {{
   box-sizing: border-box !important;
 }}
 [class*="st-key-arya_full"] [class*="st-key-arya_left"] {{
-  height: 100% !important;
+  min-height: calc(100vh - 4.5rem) !important;
   background: #f0f4f9 !important;
-  padding: 1rem 0.85rem !important;
-}}
-[class*="st-key-arya_full"] [class*="st-key-arya_left"] > div,
-[class*="st-key-arya_full"] [class*="st-key-arya_left"] > div > [data-testid="stVerticalBlock"] {{
-  height: 100% !important;
-  min-height: 0 !important;
-  display: flex !important;
-  flex-direction: column !important;
-}}
-[class*="st-key-arya_full"] [class*="st-key-arya_left"] > div > [data-testid="stVerticalBlock"] > [class*="st-key-arya_left_scroll"] {{
-  flex: 1 1 auto !important;
-  min-height: 0 !important;
-  overflow: auto !important;
-}}
-[class*="st-key-arya_full"] [class*="st-key-arya_left"] > div > [data-testid="stVerticalBlock"] > [class*="st-key-arya_left_foot"] {{
-  flex: 0 0 auto !important;
-  margin-top: auto !important;
+  padding: 1rem 0.85rem 1.25rem !important;
 }}
 [class*="st-key-arya_left_scroll"] {{
   max-height: 12rem !important;
@@ -1254,8 +1281,7 @@ hr, [data-testid="stDivider"] {{
   overflow-y: auto !important;
 }}
 [class*="st-key-arya_full"] [class*="st-key-arya_left_scroll"] {{
-  max-height: none !important;
-  height: 100% !important;
+  max-height: min(50vh, 28rem) !important;
 }}
 [class*="st-key-arya_left_foot"] {{
   display: flex !important;
@@ -1270,38 +1296,47 @@ hr, [data-testid="stDivider"] {{
   width: 100% !important;
   min-height: 2.35rem !important;
 }}
-/* Right pane — natural stack: title, thread, composer. No empty forced height. */
+/* Right pane */
 [class*="st-key-arya_right"] {{
   padding: 0.85rem 1.15rem 0.9rem !important;
   box-sizing: border-box !important;
   background: #fff !important;
 }}
 [class*="st-key-arya_full"] [class*="st-key-arya_right"] {{
-  height: 100% !important;
-  padding: 0.85rem 1.5rem 1.1rem !important;
+  min-height: calc(100vh - 4.5rem) !important;
+  padding: 1.25rem 2rem 1.5rem !important;
   display: flex !important;
   flex-direction: column !important;
 }}
 [class*="st-key-arya_full"] [class*="st-key-arya_right"] > div,
 [class*="st-key-arya_full"] [class*="st-key-arya_right"] > div > [data-testid="stVerticalBlock"] {{
-  height: 100% !important;
-  min-height: 0 !important;
+  min-height: calc(100vh - 7rem) !important;
+  height: auto !important;
   display: flex !important;
   flex-direction: column !important;
+  gap: 0.75rem !important;
 }}
-[class*="st-key-arya_full"] [class*="st-key-arya_right"] > div > [data-testid="stVerticalBlock"] > [class*="st-key-arya_thread"] {{
+[class*="st-key-arya_full"] [class*="st-key-arya_right"] > div > [data-testid="stVerticalBlock"] > [class*="st-key-arya_thread"],
+[class*="st-key-arya_full"] [class*="st-key-arya_right"] > div > [data-testid="stVerticalBlock"] > div:has([class*="st-key-arya_thread"]) {{
   flex: 1 1 auto !important;
-  min-height: 0 !important;
-  overflow: auto !important;
+  min-height: 12rem !important;
 }}
-[class*="st-key-arya_full"] [class*="st-key-arya_right"] > div > [data-testid="stVerticalBlock"] > [class*="st-key-arya_composer"] {{
+[class*="st-key-arya_full"] [class*="st-key-arya_right"] > div > [data-testid="stVerticalBlock"] > [class*="st-key-arya_composer"],
+[class*="st-key-arya_full"] [class*="st-key-arya_right"] > div > [data-testid="stVerticalBlock"] > div:has([class*="st-key-arya_composer"]) {{
   flex: 0 0 auto !important;
   margin-top: auto !important;
 }}
+[class*="st-key-arya_full"] [class*="st-key-arya_thread"],
+[class*="st-key-arya_full"] [class*="st-key-arya_composer"] {{
+  width: min(64rem, 100%) !important;
+  max-width: 64rem !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}}
 .rl-arya-widget-title {{
   margin: 0;
-  padding: 0.05rem 0 0.35rem;
-  font-size: 1.15rem;
+  padding: 0.15rem 0;
+  font-size: 1.2rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: #0f172a;
@@ -1311,26 +1346,28 @@ hr, [data-testid="stDivider"] {{
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 1.25rem 0.75rem 1rem;
+  padding: 1.5rem 0.75rem;
   text-align: center;
   box-sizing: border-box;
 }}
 .rl-arya-hero-title {{
   margin: 0;
-  font-size: clamp(1.1rem, 2vw, 1.35rem);
+  font-size: clamp(1.15rem, 2vw, 1.45rem);
   font-weight: 650;
   letter-spacing: -0.03em;
   color: #0f172a;
 }}
 .rl-arya-hero-sub {{
   margin: 0.45rem 0 0;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   color: #64748b;
 }}
 [class*="st-key-arya_full"] .rl-arya-hero {{
-  min-height: 10rem;
-  height: 100%;
-  padding: 2rem 1rem;
+  min-height: 14rem;
+  padding: 3rem 1.5rem;
+}}
+[class*="st-key-arya_full"] .rl-arya-hero-title {{
+  font-size: clamp(1.4rem, 2.5vw, 1.9rem);
 }}
 [class*="st-key-arya_thread"] {{
   max-height: 16rem !important;
@@ -1339,13 +1376,7 @@ hr, [data-testid="stDivider"] {{
 }}
 [class*="st-key-arya_full"] [class*="st-key-arya_thread"] {{
   max-height: none !important;
-  height: 100% !important;
-}}
-[class*="st-key-arya_full"] [class*="st-key-arya_right"] > div > [data-testid="stVerticalBlock"] > div {{
-  width: min(48rem, 100%) !important;
-  max-width: 48rem !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
+  min-height: 14rem !important;
 }}
 [class*="st-key-arya_composer"] {{
   padding-top: 0.35rem !important;
@@ -1358,18 +1389,6 @@ hr, [data-testid="stDivider"] {{
   align-items: center !important;
   gap: 0.55rem !important;
   height: auto !important;
-}}
-[class*="st-key-arya_composer"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child {{
-  flex: 1 1 auto !important;
-  width: auto !important;
-  min-width: 0 !important;
-  max-width: none !important;
-}}
-[class*="st-key-arya_composer"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child {{
-  flex: 0 0 2.75rem !important;
-  width: 2.75rem !important;
-  min-width: 2.75rem !important;
-  max-width: 2.75rem !important;
 }}
 [class*="st-key-arya_composer"] [data-testid="stFormSubmitButton"] button {{
   width: 2.75rem !important;

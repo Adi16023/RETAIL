@@ -496,83 +496,91 @@ def _arya_fragment(
     ]
 
     with st.container(key=shell_key):
-        # st.columns — Streamlit's real side-by-side primitive. CSS forces
-        # nowrap so the right pane (title + chat bar) cannot collapse away.
-        left, right = st.columns([1, 2.6], gap="small")
-        with left:
-            with st.container(key="arya_left"):
-                _render_left_rail(
-                    chats,
-                    key=key,
-                    active_id=st.session_state.get(key),
-                    fullscreen=fullscreen,
-                )
-
-        with right:
-            with st.container(key="arya_right"):
-                if fullscreen:
-                    tcol, xcol = st.columns([12, 1], gap="small")
-                    with tcol:
-                        st.markdown(
-                            '<p class="rl-arya-widget-title">Arya</p>',
-                            unsafe_allow_html=True,
-                        )
-                    with xcol:
-                        st.button(
-                            "×",
-                            key="arya-full-collapse",
-                            help="Back to chat panel",
-                            on_click=_collapse_fullscreen,
-                            use_container_width=True,
-                        )
-                else:
+        if fullscreen:
+            # Fullscreen chrome first (full width), then the two panes.
+            # Nesting the shadcn header inside the right column let the
+            # component eat the viewport and clip Recent chats / composer.
+            with st.container(key="arya_full_header"):
+                head_l, head_r = st.columns([30, 1], gap="small")
+                with head_l:
                     st.markdown(
                         '<p class="rl-arya-widget-title">Arya</p>',
                         unsafe_allow_html=True,
                     )
+                with head_r:
+                    ui.button(
+                        "×",
+                        key="arya-full-collapse",
+                        variant="ghost",
+                        size="icon",
+                        help="Back to chat panel",
+                        on_click=_collapse_fullscreen,
+                    )
 
-                # Thread first, composer last — messages stay above the chat bar.
-                with st.container(key="arya_thread"):
-                    flash = st.session_state.pop("arya_flash_error", None)
-                    if flash:
-                        st.error(flash)
-                    if idle:
+        if fullscreen:
+            body = st.container(key="arya_full_body")
+        else:
+            body = st.container()
+        with body:
+            left, right = st.columns([1, 2.6], gap="small")
+            with left:
+                with st.container(key="arya_left"):
+                    _render_left_rail(
+                        chats,
+                        key=key,
+                        active_id=st.session_state.get(key),
+                        fullscreen=fullscreen,
+                    )
+
+            with right:
+                with st.container(key="arya_right"):
+                    if not fullscreen:
                         st.markdown(
-                            '<div class="rl-arya-hero">'
-                            '<p class="rl-arya-hero-title">How can I help with your accounts?</p>'
-                            '<p class="rl-arya-hero-sub">Ask about one account, or about the book.</p>'
-                            "</div>",
+                            '<p class="rl-arya-widget-title">Arya</p>',
                             unsafe_allow_html=True,
                         )
-                    else:
-                        if chat and chat.get("summary"):
-                            with st.expander("What the earlier turns established"):
-                                st.markdown(chat["summary"])
-                        for turn in (chat.get("turns") or []) if chat else []:
-                            _render_turn(turn, names)
-                        if pending:
-                            _answer_question(
-                                pending,
-                                chat=chat,
-                                key=key,
-                                fingerprint=fingerprint,
-                                model_id=model_id,
-                                make_client=make_client,
-                                df=df,
-                                pack_for=pack_for,
-                                report_for=report_for,
-                                initial_focus=initial_focus,
-                            )
-                        elif chat:
-                            tapped = _render_chips(key, chat)
-                            if tapped:
-                                _queue_question(tapped)
 
-                with st.container(key="arya_composer"):
-                    turn_count = len(chat.get("turns") or []) if chat else 0
-                    typed = _render_composer(key, turn_count)
-                    if typed and not pending:
-                        _queue_question(typed)
+                    with st.container(key="arya_thread"):
+                        flash = st.session_state.pop("arya_flash_error", None)
+                        if flash:
+                            st.error(flash)
+                        if idle:
+                            st.markdown(
+                                '<div class="rl-arya-hero">'
+                                '<p class="rl-arya-hero-title">How can I help with your accounts?</p>'
+                                '<p class="rl-arya-hero-sub">Ask about one account, or about the book.</p>'
+                                "</div>",
+                                unsafe_allow_html=True,
+                            )
+                        else:
+                            if chat and chat.get("summary"):
+                                with st.expander("What the earlier turns established"):
+                                    st.markdown(chat["summary"])
+                            for turn in (chat.get("turns") or []) if chat else []:
+                                _render_turn(turn, names)
+                            if pending:
+                                _answer_question(
+                                    pending,
+                                    chat=chat,
+                                    key=key,
+                                    fingerprint=fingerprint,
+                                    model_id=model_id,
+                                    make_client=make_client,
+                                    df=df,
+                                    pack_for=pack_for,
+                                    report_for=report_for,
+                                    initial_focus=initial_focus,
+                                )
+                            elif chat:
+                                tapped = _render_chips(key, chat)
+                                if tapped:
+                                    _queue_question(tapped)
+
+                    with st.container(key="arya_composer"):
+                        turn_count = len(chat.get("turns") or []) if chat else 0
+                        typed = _render_composer(key, turn_count)
+                        if typed and not pending:
+                            _queue_question(typed)
 
 
 def render_aryachat(df, fingerprint: str, model_id: str, choice_label: str, make_client,

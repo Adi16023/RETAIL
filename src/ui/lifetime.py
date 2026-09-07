@@ -36,8 +36,8 @@ PRODUCTS_SHOWN = 10
 def _breakdown_table(rows: list[dict], label: str, basis: str) -> None:
     frame = pd.DataFrame([{
         label: r["name"],
-        f"{basis.capitalize()} / month baseline": r["value_per_month_baseline"],
-        f"{basis.capitalize()} / month recent": r["value_per_month_recent"],
+        f"{basis.capitalize()}/month baseline": r["value_per_month_baseline"],
+        f"{basis.capitalize()}/month recent": r["value_per_month_recent"],
         "Baseline path": r["cltv_baseline"],
         "Current path": r["cltv_current"],
         "Value at risk": r["value_at_risk"],
@@ -45,8 +45,8 @@ def _breakdown_table(rows: list[dict], label: str, basis: str) -> None:
     st.dataframe(
         frame, width="stretch", hide_index=True,
         column_config={
-            f"{basis.capitalize()} / month baseline": st.column_config.NumberColumn(format="₹%.0f"),
-            f"{basis.capitalize()} / month recent": st.column_config.NumberColumn(format="₹%.0f"),
+            f"{basis.capitalize()}/month baseline": st.column_config.NumberColumn(format="₹%.0f"),
+            f"{basis.capitalize()}/month recent": st.column_config.NumberColumn(format="₹%.0f"),
             "Baseline path": st.column_config.NumberColumn(format="₹%.0f"),
             "Current path": st.column_config.NumberColumn(format="₹%.0f"),
             "Value at risk": st.column_config.NumberColumn(format="₹%.0f"),

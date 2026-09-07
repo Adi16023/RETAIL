@@ -126,12 +126,13 @@ def page(title: str, caption: str, *, show_logo: bool = False) -> None:
         f'<img class="rl-book-logo" src="{logo}" alt="Youkti" />'
         if logo else ""
     )
+    # One line, no indentation: a blank or indented line inside the block
+    # makes Markdown close the HTML and print the rest as a code block.
     st.markdown(
-        f"""<section class="rl-step rl-rise">
-          {logo_html}
-          <p class="rl-step-title">{escape(title)}</p>
-          <p class="rl-step-caption">{escape(caption)}</p>
-        </section>""",
+        f'<section class="rl-step rl-rise">{logo_html}'
+        f'<p class="rl-step-title">{escape(title)}</p>'
+        f'<p class="rl-step-caption">{escape(caption)}</p>'
+        f'</section>',
         unsafe_allow_html=True,
     )
 

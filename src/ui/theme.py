@@ -1045,17 +1045,41 @@ hr, [data-testid="stDivider"] {{
 .stMainBlockContainer:has([class*="st-key-arya_shell"]),
 [data-testid="stMainBlockContainer"]:has([class*="st-key-arya_shell"]),
 .block-container:has([class*="st-key-arya_shell"]) {{
-  padding-top: 1rem !important;
+  padding-top: 0 !important;
   padding-bottom: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
   overflow: hidden !important;
-  height: 100% !important;
-  max-height: 100% !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+}}
+/* Fixed full-viewport rail. Streamlit keyed containers ignore height, so
+   painting on the column (or ::before on the shell) always stops mid-page. */
+.rl-arya-rail {{
+  position: fixed !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  width: 17rem !important;
+  height: 100vh !important;
+  background: #f1f5f9 !important;
+  border-right: 1px solid #cbd5e1 !important;
+  z-index: 60 !important;
+  pointer-events: none !important;
 }}
 [class*="st-key-arya_shell"] {{
+  position: relative;
+  z-index: 61;
   margin: 0;
-  height: calc(100dvh - 9.25rem);
-  max-height: calc(100dvh - 9.25rem);
+  height: 100vh;
+  max-height: 100vh;
   overflow: hidden;
+}}
+[class*="st-key-arya_shell"] > div,
+[class*="st-key-arya_shell"] > div > [data-testid="stVerticalBlock"],
+[class*="st-key-arya_shell"] > div > [data-testid="stVerticalBlockBorderWrapper"] {{
+  height: 100% !important;
+  min-height: 100% !important;
 }}
 [class*="st-key-arya_shell"] [data-testid="stHorizontalBlock"] {{
   align-items: stretch !important;
@@ -1063,31 +1087,61 @@ hr, [data-testid="stDivider"] {{
   min-height: 0 !important;
   height: 100% !important;
 }}
-[class*="st-key-arya_shell"] [data-testid="stHorizontalBlock"] > div:first-child {{
-  flex: 0 0 15.5rem !important;
-  width: 15.5rem !important;
-  min-width: 15.5rem !important;
-  max-width: 15.5rem !important;
-  border-right: 1px solid var(--rl-line);
-  padding-right: 0.75rem !important;
+/* Recent-chats column — transparent so the fixed rail shows through. */
+[class*="st-key-arya_shell"] [data-testid="stHorizontalBlock"] > div:first-child,
+[class*="st-key-arya_shell"] [data-testid="stColumn"]:first-of-type,
+[class*="st-key-arya_shell"] [data-testid="column"]:first-of-type {{
+  flex: 0 0 17rem !important;
+  width: 17rem !important;
+  min-width: 17rem !important;
+  max-width: 17rem !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  align-self: stretch !important;
+  background: transparent !important;
+  border-right: none !important;
+  padding: 0 !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
 }}
-[class*="st-key-arya_shell"] [data-testid="stHorizontalBlock"] > div:last-child {{
+[class*="st-key-arya_shell"] [data-testid="stHorizontalBlock"] > div:first-child > div,
+[class*="st-key-arya_shell"] [data-testid="stHorizontalBlock"] > div:first-child [data-testid="stVerticalBlock"],
+[class*="st-key-arya_shell"] [data-testid="stHorizontalBlock"] > div:first-child [data-testid="stVerticalBlockBorderWrapper"] {{
+  height: 100% !important;
+  min-height: 100% !important;
+  background: transparent !important;
+}}
+[class*="st-key-arya_shell"] [data-testid="stHorizontalBlock"] > div:last-child,
+[class*="st-key-arya_shell"] [data-testid="stColumn"]:last-of-type,
+[class*="st-key-arya_shell"] [data-testid="column"]:last-of-type {{
   min-width: 0 !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  align-self: stretch !important;
+  background: #fff !important;
   overflow-y: auto !important;
-  padding-left: 1rem !important;
+  padding: 1.25rem 1.5rem 5.5rem !important;
+}}
+[class*="st-key-arya_shell"] [data-testid="stHorizontalBlock"] > div:last-child > div,
+[class*="st-key-arya_shell"] [data-testid="stHorizontalBlock"] > div:last-child [data-testid="stVerticalBlock"] {{
+  background: #fff !important;
+  height: 100% !important;
 }}
 [class*="st-key-arya_chat_nav"] {{
   height: 100%;
+  min-height: 100%;
+  padding: 1rem 0.75rem 1.25rem !important;
+  background: transparent;
+  box-sizing: border-box;
 }}
 .rl-arya-side-title {{
-  margin: 0 0 0.35rem;
-  padding: 0 0.5rem;
-  font-size: 0.78rem;
-  font-weight: 650;
-  letter-spacing: 0.02em;
-  color: #0f172a;
+  margin: 0 0 0.65rem;
+  padding: 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
 }}
 [class*="st-key-aryachat_active_"][class*="-search"] [data-baseweb="input"],
 [class*="st-key-aryachat_active_"][class*="-search"] [data-testid="stTextInputRootElement"] {{
@@ -1099,7 +1153,7 @@ hr, [data-testid="stDivider"] {{
 }}
 .rl-arya-group {{
   margin: 0.85rem 0 0.25rem;
-  padding: 0 0.5rem;
+  padding: 0 0.35rem;
   font-size: 0.68rem;
   font-weight: 650;
   letter-spacing: 0.06em;
@@ -1115,17 +1169,19 @@ hr, [data-testid="stDivider"] {{
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.35rem 0.5rem;
+  padding: 0.45rem 0.5rem;
   border-radius: 0.5rem;
   color: #475569;
 }}
 .rl-arya-row:hover {{
-  background: #f8fafc;
+  background: #fff;
   color: #0f172a;
+  box-shadow: 0 0 0 1px #e2e8f0;
 }}
 .rl-arya-row-active {{
-  background: #f1f5f9;
+  background: #fff;
   color: #0f172a;
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--youkti-primary) 35%, #e2e8f0);
 }}
 .rl-arya-row-title {{
   flex: 1;
@@ -1172,10 +1228,14 @@ hr, [data-testid="stDivider"] {{
   text-align: center;
   color: #0f172a;
 }}
-[data-testid="stChatInput"] {{
-  max-width: 48rem;
-  margin-left: auto;
-  margin-right: auto;
+/* Composer sits on the white chat pane, not over the grey rail. */
+.stApp:has([class*="st-key-arya_shell"]) [data-testid="stChatInput"],
+[data-testid="stApp"]:has([class*="st-key-arya_shell"]) [data-testid="stChatInput"] {{
+  position: relative;
+  z-index: 70;
+  max-width: calc(100% - 17rem - 3rem);
+  margin-left: calc(17rem + 1.5rem);
+  margin-right: 1.5rem;
 }}
 [data-testid="stChatMessage"] {{
   max-width: 52rem;

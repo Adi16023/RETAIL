@@ -351,8 +351,38 @@ def render_aryachat(df, fingerprint: str, model_id: str, choice_label: str, make
     idle = chat is None
     tapped = None
 
+    # Fixed full-height rail beside the main Streamlit sidebar. Column CSS
+    # cannot stretch past content height, so the divider is a real DOM node.
+    st.html(
+        """
+        <div class="rl-arya-rail" aria-hidden="true"></div>
+        <script>
+        (function () {
+          function place() {
+            const rail = document.querySelector(".rl-arya-rail");
+            const main = document.querySelector('[data-testid="stMain"]');
+            if (!rail || !main) return;
+            const box = main.getBoundingClientRect();
+            rail.style.left = box.left + "px";
+            rail.style.top = box.top + "px";
+            rail.style.height = box.height + "px";
+            rail.style.bottom = "auto";
+          }
+          place();
+          window.addEventListener("resize", place);
+          const main = document.querySelector('[data-testid="stMain"]');
+          if (main && window.ResizeObserver) new ResizeObserver(place).observe(main);
+          requestAnimationFrame(place);
+          setTimeout(place, 50);
+          setTimeout(place, 250);
+        })();
+        </script>
+        """,
+        unsafe_allow_javascript=True,
+    )
+
     with st.container(key="arya_shell"):
-        side, main = st.columns([1, 3], gap="medium")
+        side, main = st.columns([1, 3], gap="small")
         with side:
             with st.container(key="arya_chat_nav"):
                 render_chat_sidebar(fingerprint)

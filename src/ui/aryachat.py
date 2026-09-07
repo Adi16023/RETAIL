@@ -291,7 +291,7 @@ def _mark_delete(chat_id: str) -> None:
 
 
 def _render_left_rail(chats: list[dict], *, key: str, active_id: str | None, fullscreen: bool) -> None:
-    """History scrolls above; New chat + exit/close are pinned to the rail bottom."""
+    """History list; dock also pins New chat / Fullscreen / Close under it."""
     with st.container(key="arya_left_scroll"):
         with ui.elements(key=f"arya-chats-{key}-{'full' if fullscreen else 'dock'}") as el:
             el.heading("Recent chats", level=4)
@@ -327,7 +327,9 @@ def _render_left_rail(chats: list[dict], *, key: str, active_id: str | None, ful
                                     on_click=partial(_mark_delete, cid),
                                 )
 
-    # Bottom of the sidebar — always, regardless of shadcn flex quirks.
+    if fullscreen:
+        return
+
     with st.container(key="arya_left_foot"):
         st.button(
             "New chat",
@@ -337,26 +339,18 @@ def _render_left_rail(chats: list[dict], *, key: str, active_id: str | None, ful
             on_click=_start_new_chat,
             args=(key,),
         )
-        if fullscreen:
-            st.button(
-                "Exit fullscreen",
-                key="arya-rail-exit-full",
-                use_container_width=True,
-                on_click=_collapse_fullscreen,
-            )
-        else:
-            st.button(
-                "Fullscreen",
-                key="arya-rail-full",
-                use_container_width=True,
-                on_click=_toggle_fullscreen,
-            )
-            st.button(
-                "Close",
-                key="arya-rail-close",
-                use_container_width=True,
-                on_click=_close_widget,
-            )
+        st.button(
+            "Fullscreen",
+            key="arya-rail-full",
+            use_container_width=True,
+            on_click=_toggle_fullscreen,
+        )
+        st.button(
+            "Close",
+            key="arya-rail-close",
+            use_container_width=True,
+            on_click=_close_widget,
+        )
 
 
 def _render_composer(key: str, turn_count: int) -> str | None:
@@ -371,7 +365,13 @@ def _render_composer(key: str, turn_count: int) -> str | None:
                 key=f"{key}-typed-{turn_count}",
             )
         with c2:
-            sent = st.form_submit_button("↑", type="primary", use_container_width=True)
+            sent = st.form_submit_button(
+                "",
+                type="primary",
+                icon=":material/send:",
+                use_container_width=True,
+                help="Send",
+            )
     if sent:
         text = (typed or "").strip()
         return text or None
@@ -501,21 +501,31 @@ def _arya_fragment(
             # Nesting the shadcn header inside the right column let the
             # component eat the viewport and clip Recent chats / composer.
             with st.container(key="arya_full_header"):
-                head_l, head_r = st.columns([30, 1], gap="small")
+                head_l, head_actions = st.columns([4, 2.4], gap="small")
                 with head_l:
                     st.markdown(
                         '<p class="rl-arya-widget-title">Arya</p>',
                         unsafe_allow_html=True,
                     )
-                with head_r:
-                    ui.button(
-                        "×",
-                        key="arya-full-collapse",
-                        variant="ghost",
-                        size="icon",
-                        help="Back to chat panel",
-                        on_click=_collapse_fullscreen,
-                    )
+                with head_actions:
+                    new_col, exit_col = st.columns(2, gap="small")
+                    with new_col:
+                        st.button(
+                            "New chat",
+                            key="arya-full-new",
+                            type="primary",
+                            on_click=_start_new_chat,
+                            args=(key,),
+                            use_container_width=True,
+                        )
+                    with exit_col:
+                        st.button(
+                            "Exit fullscreen",
+                            key="arya-full-collapse",
+                            on_click=_collapse_fullscreen,
+                            use_container_width=True,
+                            help="Back to chat panel",
+                        )
 
         if fullscreen:
             body = st.container(key="arya_full_body")

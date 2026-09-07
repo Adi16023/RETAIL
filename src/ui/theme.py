@@ -1109,44 +1109,36 @@ hr, [data-testid="stDivider"] {{
   margin: 0 !important;
   box-sizing: border-box !important;
 }}
-[class*="st-key-arya_full"] {{
+/*
+ * Fullscreen shell only — never match arya_full_header / arya_full_body
+ * (class*=\"st-key-arya_full\" is a prefix of those keys and used to paint
+ * them fixed inset:0, which blanked the screen and left white below).
+ * Panes are position:fixed to the viewport; Streamlit columns will not
+ * stretch to a percentage height no matter what the parent says.
+ */
+[class*="st-key-arya_full"]:not([class*="st-key-arya_full_"]) {{
   position: fixed !important;
   inset: 0 !important;
   width: 100vw !important;
   height: 100vh !important;
-  max-width: none !important;
-  max-height: none !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
   z-index: 1200 !important;
   border-radius: 0 !important;
   background: #fff !important;
   border: none !important;
   box-shadow: none !important;
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
+  overflow: hidden !important;
   padding: 0 !important;
   margin: 0 !important;
   box-sizing: border-box !important;
-  display: block !important;
 }}
-[class*="st-key-arya_full"] > div,
-[class*="st-key-arya_full"] > div > [data-testid="stVerticalBlock"] {{
-  width: 100% !important;
-  height: auto !important;
-  min-height: 100% !important;
-  display: block !important;
-}}
-[class*="st-key-arya_full"] > div > [data-testid="stVerticalBlock"] > div {{
-  flex: none !important;
-  height: auto !important;
-  max-height: none !important;
-  overflow: visible !important;
-}}
-.stApp:has([class*="st-key-arya_full"]) [data-testid="stSidebar"],
-[data-testid="stApp"]:has([class*="st-key-arya_full"]) [data-testid="stSidebar"],
-.stApp:has([class*="st-key-arya_full"]) [data-testid="stSidebarCollapsedControl"],
-[data-testid="stApp"]:has([class*="st-key-arya_full"]) [data-testid="stSidebarCollapsedControl"],
-.stApp:has([class*="st-key-arya_full"]) [data-testid="collapsedControl"],
-[data-testid="stApp"]:has([class*="st-key-arya_full"]) [data-testid="collapsedControl"] {{
+.stApp:has([class*="st-key-arya_full"]:not([class*="st-key-arya_full_"])) [data-testid="stSidebar"],
+[data-testid="stApp"]:has([class*="st-key-arya_full"]:not([class*="st-key-arya_full_"])) [data-testid="stSidebar"],
+.stApp:has([class*="st-key-arya_full"]:not([class*="st-key-arya_full_"])) [data-testid="stSidebarCollapsedControl"],
+[data-testid="stApp"]:has([class*="st-key-arya_full"]:not([class*="st-key-arya_full_"])) [data-testid="stSidebarCollapsedControl"],
+.stApp:has([class*="st-key-arya_full"]:not([class*="st-key-arya_full_"])) [data-testid="collapsedControl"],
+[data-testid="stApp"]:has([class*="st-key-arya_full"]:not([class*="st-key-arya_full_"])) [data-testid="collapsedControl"] {{
   display: none !important;
   visibility: hidden !important;
   width: 0 !important;
@@ -1158,26 +1150,29 @@ hr, [data-testid="stDivider"] {{
   overflow: hidden !important;
   pointer-events: none !important;
 }}
-.stApp:has([class*="st-key-arya_full"]) [data-testid="stAppViewContainer"],
-[data-testid="stApp"]:has([class*="st-key-arya_full"]) [data-testid="stAppViewContainer"],
-.stApp:has([class*="st-key-arya_full"]) [data-testid="stMain"],
-[data-testid="stApp"]:has([class*="st-key-arya_full"]) [data-testid="stMain"],
-.stApp:has([class*="st-key-arya_full"]) .main,
-[data-testid="stApp"]:has([class*="st-key-arya_full"]) .main {{
+.stApp:has([class*="st-key-arya_full"]:not([class*="st-key-arya_full_"])) [data-testid="stAppViewContainer"],
+[data-testid="stApp"]:has([class*="st-key-arya_full"]:not([class*="st-key-arya_full_"])) [data-testid="stAppViewContainer"],
+.stApp:has([class*="st-key-arya_full"]:not([class*="st-key-arya_full_"])) [data-testid="stMain"],
+[data-testid="stApp"]:has([class*="st-key-arya_full"]:not([class*="st-key-arya_full_"])) [data-testid="stMain"],
+.stApp:has([class*="st-key-arya_full"]:not([class*="st-key-arya_full_"])) .main,
+[data-testid="stApp"]:has([class*="st-key-arya_full"]:not([class*="st-key-arya_full_"])) .main {{
   margin-left: 0 !important;
   max-width: 100% !important;
   width: 100% !important;
 }}
-/* Header bar */
+/* Header bar — pinned to the top of the viewport. */
 [class*="st-key-arya_full_header"] {{
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
   width: 100% !important;
+  height: 4.25rem !important;
   padding: 0.85rem 1.5rem !important;
   border-bottom: 1px solid #e2e8f0 !important;
   box-sizing: border-box !important;
   background: #fff !important;
-  position: sticky !important;
-  top: 0 !important;
-  z-index: 5 !important;
+  z-index: 1210 !important;
 }}
 [class*="st-key-arya_full_header"] [data-testid="stHorizontalBlock"] {{
   width: 100% !important;
@@ -1195,34 +1190,38 @@ hr, [data-testid="stDivider"] {{
   height: auto !important;
 }}
 [class*="st-key-arya_full_header"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child {{
-  flex: 0 0 2.75rem !important;
-  width: 2.75rem !important;
-  min-width: 2.75rem !important;
-  max-width: 2.75rem !important;
+  flex: 0 0 22rem !important;
+  width: 22rem !important;
+  min-width: 22rem !important;
+  max-width: 22rem !important;
   margin-left: auto !important;
   height: auto !important;
 }}
-[class*="st-key-arya_full_header"] [data-testid="stCustomComponentV2"],
-[class*="st-key-arya_full_header"] iframe {{
-  width: 2.75rem !important;
-  max-width: 2.75rem !important;
-  height: 2.75rem !important;
-  min-height: 2.75rem !important;
-  max-height: 2.75rem !important;
+[class*="st-key-arya_full_header"] .stButton > button,
+[class*="st-key-arya_full_header"] button {{
+  min-height: 2.35rem !important;
+  white-space: nowrap !important;
 }}
+/* Body is only a mount point — panes are fixed below. */
 [class*="st-key-arya_full_body"] {{
   width: 100% !important;
-  min-height: calc(100vh - 4.5rem) !important;
+  height: 0 !important;
+  overflow: visible !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }}
-/* Side-by-side panes */
+/* Side-by-side panes (dock keeps flow layout; fullscreen panes are fixed). */
 [class*="st-key-arya_dock"] [data-testid="stHorizontalBlock"],
-[class*="st-key-arya_full"] [data-testid="stHorizontalBlock"] {{
+[class*="st-key-arya_full"]:not([class*="st-key-arya_full_"]) [data-testid="stHorizontalBlock"] {{
   display: flex !important;
   flex-direction: row !important;
   flex-wrap: nowrap !important;
   align-items: stretch !important;
   width: 100% !important;
   gap: 0 !important;
+}}
+[class*="st-key-arya_full_header"] [data-testid="stHorizontalBlock"],
+[class*="st-key-arya_composer"] [data-testid="stHorizontalBlock"] {{
   height: auto !important;
 }}
 [class*="st-key-arya_dock"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child {{
@@ -1235,19 +1234,6 @@ hr, [data-testid="stDivider"] {{
   flex: 1 1 auto !important;
   min-width: 0 !important;
   width: auto !important;
-}}
-[class*="st-key-arya_full"] [data-testid="stColumn"]:has([class*="st-key-arya_left"]) {{
-  flex: 0 0 17.5rem !important;
-  width: 17.5rem !important;
-  min-width: 17.5rem !important;
-  max-width: 17.5rem !important;
-  min-height: calc(100vh - 4.5rem) !important;
-}}
-[class*="st-key-arya_full"] [data-testid="stColumn"]:has([class*="st-key-arya_right"]) {{
-  flex: 1 1 auto !important;
-  min-width: 0 !important;
-  width: auto !important;
-  min-height: calc(100vh - 4.5rem) !important;
 }}
 [class*="st-key-arya_composer"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child {{
   flex: 1 1 auto !important;
@@ -1263,7 +1249,7 @@ hr, [data-testid="stDivider"] {{
   max-width: 2.75rem !important;
   height: auto !important;
 }}
-/* Left rail */
+/* Left rail — fixed from under the header to the bottom of the screen. */
 [class*="st-key-arya_left"] {{
   background: #f8fafc !important;
   border-right: 1px solid #e2e8f0 !important;
@@ -1271,9 +1257,27 @@ hr, [data-testid="stDivider"] {{
   box-sizing: border-box !important;
 }}
 [class*="st-key-arya_full"] [class*="st-key-arya_left"] {{
-  min-height: calc(100vh - 4.5rem) !important;
+  position: fixed !important;
+  top: 4.25rem !important;
+  left: 0 !important;
+  bottom: 0 !important;
+  width: 17.5rem !important;
+  height: auto !important;
+  z-index: 1205 !important;
   background: #f0f4f9 !important;
-  padding: 1rem 0.85rem 1.25rem !important;
+  padding: 1rem 0.85rem 0.85rem !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}}
+[class*="st-key-arya_full"] [class*="st-key-arya_left"] > div,
+[class*="st-key-arya_full"] [class*="st-key-arya_left"] > div > [data-testid="stVerticalBlock"] {{
+  height: 100% !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.55rem !important;
+  overflow: hidden !important;
 }}
 [class*="st-key-arya_left_scroll"] {{
   max-height: 12rem !important;
@@ -1281,7 +1285,10 @@ hr, [data-testid="stDivider"] {{
   overflow-y: auto !important;
 }}
 [class*="st-key-arya_full"] [class*="st-key-arya_left_scroll"] {{
-  max-height: min(50vh, 28rem) !important;
+  flex: 1 1 auto !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
 }}
 [class*="st-key-arya_left_foot"] {{
   display: flex !important;
@@ -1291,40 +1298,44 @@ hr, [data-testid="stDivider"] {{
   padding-top: 0.75rem !important;
   border-top: 1px solid #e2e8f0 !important;
 }}
+[class*="st-key-arya_full"] [class*="st-key-arya_left_foot"] {{
+  flex: 0 0 auto !important;
+  margin-top: auto !important;
+  background: #f0f4f9 !important;
+}}
 [class*="st-key-arya_left_foot"] .stButton > button,
 [class*="st-key-arya_left_foot"] button {{
   width: 100% !important;
   min-height: 2.35rem !important;
 }}
-/* Right pane */
+/* Right pane — fixed; thread scrolls; composer pinned to the bottom. */
 [class*="st-key-arya_right"] {{
   padding: 0.85rem 1.15rem 0.9rem !important;
   box-sizing: border-box !important;
   background: #fff !important;
 }}
 [class*="st-key-arya_full"] [class*="st-key-arya_right"] {{
-  min-height: calc(100vh - 4.5rem) !important;
-  padding: 1.25rem 2rem 1.5rem !important;
+  position: fixed !important;
+  top: 4.25rem !important;
+  left: 17.5rem !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  z-index: 1205 !important;
+  padding: 1.25rem 2rem 1.25rem !important;
+  overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
 }}
 [class*="st-key-arya_full"] [class*="st-key-arya_right"] > div,
 [class*="st-key-arya_full"] [class*="st-key-arya_right"] > div > [data-testid="stVerticalBlock"] {{
-  min-height: calc(100vh - 7rem) !important;
-  height: auto !important;
+  height: 100% !important;
+  min-height: 0 !important;
   display: flex !important;
   flex-direction: column !important;
   gap: 0.75rem !important;
-}}
-[class*="st-key-arya_full"] [class*="st-key-arya_right"] > div > [data-testid="stVerticalBlock"] > [class*="st-key-arya_thread"],
-[class*="st-key-arya_full"] [class*="st-key-arya_right"] > div > [data-testid="stVerticalBlock"] > div:has([class*="st-key-arya_thread"]) {{
-  flex: 1 1 auto !important;
-  min-height: 12rem !important;
-}}
-[class*="st-key-arya_full"] [class*="st-key-arya_right"] > div > [data-testid="stVerticalBlock"] > [class*="st-key-arya_composer"],
-[class*="st-key-arya_full"] [class*="st-key-arya_right"] > div > [data-testid="stVerticalBlock"] > div:has([class*="st-key-arya_composer"]) {{
-  flex: 0 0 auto !important;
-  margin-top: auto !important;
+  overflow: hidden !important;
 }}
 [class*="st-key-arya_full"] [class*="st-key-arya_thread"],
 [class*="st-key-arya_full"] [class*="st-key-arya_composer"] {{
@@ -1363,8 +1374,9 @@ hr, [data-testid="stDivider"] {{
   color: #64748b;
 }}
 [class*="st-key-arya_full"] .rl-arya-hero {{
-  min-height: 14rem;
-  padding: 3rem 1.5rem;
+  min-height: 12rem;
+  height: 100%;
+  padding: 2.5rem 1.5rem;
 }}
 [class*="st-key-arya_full"] .rl-arya-hero-title {{
   font-size: clamp(1.4rem, 2.5vw, 1.9rem);
@@ -1375,11 +1387,20 @@ hr, [data-testid="stDivider"] {{
   padding: 0.15rem 0.1rem 0.35rem !important;
 }}
 [class*="st-key-arya_full"] [class*="st-key-arya_thread"] {{
+  flex: 1 1 auto !important;
   max-height: none !important;
-  min-height: 14rem !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
 }}
 [class*="st-key-arya_composer"] {{
   padding-top: 0.35rem !important;
+}}
+[class*="st-key-arya_full"] [class*="st-key-arya_composer"] {{
+  flex: 0 0 auto !important;
+  margin-top: auto !important;
+  background: #fff !important;
+  z-index: 2 !important;
+  padding-bottom: 0.25rem !important;
 }}
 [class*="st-key-arya_composer"] [data-testid="stForm"] {{
   border: none !important;
@@ -1397,6 +1418,11 @@ hr, [data-testid="stDivider"] {{
   border-radius: 999px !important;
   font-size: 1.15rem !important;
   font-weight: 700 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+}}
+[class*="st-key-arya_composer"] [data-testid="stFormSubmitButton"] button [data-testid="stIconMaterial"] {{
+  font-size: 1.25rem !important;
 }}
 [class*="st-key-arya_composer"] [data-baseweb="input"],
 [class*="st-key-arya_composer"] [data-testid="stTextInputRootElement"] {{
@@ -1573,31 +1599,25 @@ hr, [data-testid="stDivider"] {{
   z-index: 9999;
   pointer-events: none;
 }}
+/* AryaChat already streams in-place — don't veil dock/fullscreen with the page loader. */
+[data-testid="stApp"]:has([class*="st-key-arya_dock"])[data-test-script-state="running"]::before,
+[data-testid="stApp"]:has([class*="st-key-arya_dock"])[data-test-script-state="rerunRequested"]::before,
+[data-testid="stApp"]:has([class*="st-key-arya_dock"])[data-test-script-state="running"]::after,
+[data-testid="stApp"]:has([class*="st-key-arya_dock"])[data-test-script-state="rerunRequested"]::after,
+[data-testid="stApp"]:has([class*="st-key-arya_full"]:not([class*="st-key-arya_full_"]))[data-test-script-state="running"]::before,
+[data-testid="stApp"]:has([class*="st-key-arya_full"]:not([class*="st-key-arya_full_"]))[data-test-script-state="rerunRequested"]::before,
+[data-testid="stApp"]:has([class*="st-key-arya_full"]:not([class*="st-key-arya_full_"]))[data-test-script-state="running"]::after,
+[data-testid="stApp"]:has([class*="st-key-arya_full"]:not([class*="st-key-arya_full_"]))[data-test-script-state="rerunRequested"]::after {{
+  content: none !important;
+  display: none !important;
+}}
 [data-testid="stSkeletonElement"],
 .stSkeleton {{
   display: none !important;
 }}
 
 [data-testid="stSpinner"] {{
-  display: flex !important;
-  align-items: center !important;
-  gap: 0.55rem !important;
   letter-spacing: -0.01em;
-}}
-[data-testid="stSpinner"] img,
-[data-testid="stSpinner"] svg,
-[data-testid="stSpinner"] [data-testid="stIconMaterial"] {{
-  display: none !important;
-}}
-[data-testid="stSpinner"]::before {{
-  content: "";
-  width: 1.15rem;
-  height: 1.15rem;
-  border: 2px solid color-mix(in oklab, var(--youkti-primary) 22%, white);
-  border-top-color: var(--youkti-primary);
-  border-radius: 50%;
-  animation: rl-spin 0.65s linear infinite;
-  flex: 0 0 auto;
 }}
 
 /* Caption + markdown polish */
@@ -1631,8 +1651,7 @@ hr, [data-testid="stDivider"] {{
     animation: none !important;
     transition: none !important;
   }}
-  [data-testid="stApp"][data-test-script-state="running"]::before,
-  [data-testid="stSpinner"]::before {{
+  [data-testid="stApp"][data-test-script-state="running"]::before {{
     animation: rl-spin 0.7s linear infinite !important;
   }}
 }}

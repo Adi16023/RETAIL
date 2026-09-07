@@ -118,9 +118,17 @@ def sidebar_brand(title: str, kicker: str = "", *, on_home=None) -> None:
     )
 
 
-def page(title: str, caption: str) -> None:
+def page(title: str, caption: str, *, show_logo: bool = False) -> None:
+    # Optional Youkti wordmark above the title — same asset as the sidebar
+    # brand, sized a touch larger for the full-bleed book home.
+    logo = _youkti_logo_uri() if show_logo else None
+    logo_html = (
+        f'<img class="rl-book-logo" src="{logo}" alt="Youkti" />'
+        if logo else ""
+    )
     st.markdown(
         f"""<section class="rl-step rl-rise">
+          {logo_html}
           <p class="rl-step-title">{escape(title)}</p>
           <p class="rl-step-caption">{escape(caption)}</p>
         </section>""",
@@ -442,6 +450,13 @@ section.main > div {{
   max-width: 7.5rem;
   object-fit: contain;
 }}
+.rl-book-logo {{
+  display: block;
+  height: 2.35rem;
+  width: auto;
+  max-width: 10rem;
+  object-fit: contain;
+}}
 .rl-side-title {{
   font-size: 1.05rem;
   font-weight: 700;
@@ -458,6 +473,11 @@ section.main > div {{
   flex-direction: column;
   gap: 0.35rem;
   margin: 0.15rem 0 0.85rem;
+}}
+/* Match sidebar brand spacing when the wordmark sits above the page title. */
+.rl-step > .rl-side-logo,
+.rl-step > .rl-book-logo {{
+  margin-bottom: 0.3rem;
 }}
 .rl-step-title {{
   font-size: 1.18rem;

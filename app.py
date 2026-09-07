@@ -771,7 +771,11 @@ def _need_an_account() -> None:
 
 def render_data_page() -> None:
     if account_id is None:
-        theme.page(page_spec["list_title"], page_spec["list_caption"])
+        theme.page(
+            page_spec["list_title"],
+            page_spec["list_caption"],
+            show_logo=True,
+        )
         # Data source on the book — hidden for now (same as the sidebar entry).
         # if st.button(
         #     "Choose your data source",

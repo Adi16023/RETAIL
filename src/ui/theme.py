@@ -1698,52 +1698,6 @@ hr, [data-testid="stDivider"] {{
   transform: translateY(-1px);
 }}
 
-@keyframes rl-spin {{
-  to {{ transform: rotate(360deg); }}
-}}
-
-/* Youkti circle — replace Streamlit's fade/blur while the script reruns. */
-[data-testid="stApp"][data-test-script-state="running"] [data-testid="stAppViewContainer"],
-[data-testid="stApp"][data-test-script-state="rerunRequested"] [data-testid="stAppViewContainer"] {{
-  filter: none !important;
-}}
-[data-testid="stApp"][data-test-script-state="running"]::after,
-[data-testid="stApp"][data-test-script-state="rerunRequested"]::after {{
-  content: "";
-  position: fixed;
-  inset: 0;
-  background: color-mix(in oklab, #fff 64%, transparent);
-  z-index: 9998;
-  pointer-events: all;
-}}
-[data-testid="stApp"][data-test-script-state="running"]::before,
-[data-testid="stApp"][data-test-script-state="rerunRequested"]::before {{
-  content: "";
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  width: 2.35rem;
-  height: 2.35rem;
-  margin: -1.175rem 0 0 -1.175rem;
-  border: 3px solid color-mix(in oklab, var(--youkti-primary) 22%, white);
-  border-top-color: var(--youkti-primary);
-  border-radius: 50%;
-  animation: rl-spin 0.7s linear infinite;
-  z-index: 9999;
-  pointer-events: none;
-}}
-/* AryaChat already streams in-place — don't veil dock/fullscreen with the page loader. */
-[data-testid="stApp"]:has([class*="st-key-arya_dock"])[data-test-script-state="running"]::before,
-[data-testid="stApp"]:has([class*="st-key-arya_dock"])[data-test-script-state="rerunRequested"]::before,
-[data-testid="stApp"]:has([class*="st-key-arya_dock"])[data-test-script-state="running"]::after,
-[data-testid="stApp"]:has([class*="st-key-arya_dock"])[data-test-script-state="rerunRequested"]::after,
-[data-testid="stApp"]:has([class*="st-key-arya_full"]:not([class*="st-key-arya_full_"]))[data-test-script-state="running"]::before,
-[data-testid="stApp"]:has([class*="st-key-arya_full"]:not([class*="st-key-arya_full_"]))[data-test-script-state="rerunRequested"]::before,
-[data-testid="stApp"]:has([class*="st-key-arya_full"]:not([class*="st-key-arya_full_"]))[data-test-script-state="running"]::after,
-[data-testid="stApp"]:has([class*="st-key-arya_full"]:not([class*="st-key-arya_full_"]))[data-test-script-state="rerunRequested"]::after {{
-  content: none !important;
-  display: none !important;
-}}
 [data-testid="stSkeletonElement"],
 .stSkeleton {{
   display: none !important;
@@ -1783,9 +1737,6 @@ hr, [data-testid="stDivider"] {{
   *, *::before, *::after {{
     animation: none !important;
     transition: none !important;
-  }}
-  [data-testid="stApp"][data-test-script-state="running"]::before {{
-    animation: rl-spin 0.7s linear infinite !important;
   }}
 }}
 

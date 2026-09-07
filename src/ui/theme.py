@@ -1002,6 +1002,9 @@ hr, [data-testid="stDivider"] {{
   font-size: 0.72rem;
   line-height: 1;
 }}
+.rl-book-muted {{
+  color: var(--rl-muted);
+}}
 .rl-book-bar {{
   display: inline-flex;
   align-items: center;

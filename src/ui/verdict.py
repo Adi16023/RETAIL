@@ -54,28 +54,8 @@ DIMENSION_LABELS = {
     "order_pattern": "Order pattern",
 }
 
-_OUTCOME_PROBABILITY = {"FLAG": "p_flag", "NO_FLAG": "p_no_flag", "DEFER": "p_defer"}
-
-
 def _money(value) -> str:
     return "—" if value in (None, "") else f"₹{value:,.0f}"
-
-
-def _probability(p) -> str:
-    # Capped at 99: a classifier is never certain, and "100%" on a banner
-    # would claim it is.
-    return f"{min(round(p * 100), 99):.0f}%"
-
-
-def _ml_confidence(report: dict) -> str | None:
-    """The classifier's probability for the outcome the AI reached, or None
-    when no model was available for this run."""
-    opinion = report.get("model_opinion") or {}
-    agreement = report.get("model_agreement")
-    if not opinion.get("available") or not agreement:
-        return None
-    p = opinion.get(_OUTCOME_PROBABILITY.get(agreement.get("agent_outcome"), ""))
-    return None if p is None else _probability(p)
 
 
 def _banner(report: dict, colors: dict) -> None:
@@ -93,15 +73,13 @@ def _banner(report: dict, colors: dict) -> None:
     if shape and shape != "not applicable":
         title += f" · {shape.capitalize()}"
 
-    # One line per source, so the reader never has to work out whose number
-    # is whose: the AI agent is the judge and states a confidence level; the
-    # statistical model is a second witness and states a probability.
+    # The AI agent is the judge and states its confidence level. The
+    # statistical classifier's line was dropped from this banner on Sept 7
+    # at the user's request; its probability of leakage lives in the
+    # account book instead, where it reads the same way on every row.
     lines = [
         f"AI agent — <strong>{escape(report['confidence'].capitalize())} confidence</strong>",
     ]
-    ml = _ml_confidence(report)
-    if ml:
-        lines.append(f"Statistical model — <strong>{escape(ml)} confidence score</strong>")
     lines.append(
         f"Priority <strong style='color:{colors[priority_role]}'>{escape(str(priority))}</strong>"
         f" — {escape(priority_hint)}"

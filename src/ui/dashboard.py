@@ -2,8 +2,9 @@
 The account dashboard: pick an account, see what is happening to it.
 
 Read top to bottom it answers a manager's questions in order — is anything
-wrong (status strip), how big (KPI tiles), where (tabs by dimension), can I
-trust it (data quality), show me the numbers (table).
+wrong (status strip), how big (KPI tiles), where (tabs by dimension), show
+me the numbers (table). Data-quality markers (gaps, bulk months) sit on the
+Trend chart; the sufficiency label is in the status strip.
 
 Everything on this page is DETERMINISTIC. Exploring an account costs no API
 calls; the AI verdict is a separate, explicit button. That matters because a
@@ -40,7 +41,10 @@ SIGNIFICANCE_KEY = {
     "tier_mix": "tier_mix", "order_pattern": "order_frequency",
 }
 
-# Same six views as the original tabs, with icons instead of a tab bar.
+# Five views, with icons instead of a tab bar. Data quality was the sixth
+# until Sept 8 and was removed at the user's request: its gap / bulk-month
+# markers already sit on the Trend chart, and the sufficiency label is in
+# the status strip. `_render_quality_tab` stays below, unrouted.
 # `pack_keys` are the detector blocks that make this the view worth opening first.
 VIEWS = [
     {
@@ -66,12 +70,6 @@ VIEWS = [
         "icon": ":material/shopping_bag:",
         "label": "Order pattern",
         "pack_keys": ("order_pattern",),
-    },
-    {
-        "key": "quality",
-        "icon": ":material/verified:",
-        "label": "Data quality",
-        "pack_keys": (),
     },
     {
         "key": "table",
@@ -105,9 +103,6 @@ def _default_view(pack: dict) -> str:
             status = (pack.get(pack_key) or {}).get("status")
             if _is_concern(status):
                 return view["key"]
-    sufficiency = (pack.get("data_sufficiency") or {}).get("label")
-    if sufficiency == "insufficient":
-        return "quality"
     return "trend"
 
 
@@ -514,7 +509,5 @@ def _render_chart_views(df: pd.DataFrame, account_id: str, pack: dict,
             _render_pricing_tab(pack, frame, colors)
         elif view == "orders":
             _render_orders_tab(pack, frame, colors)
-        elif view == "quality":
-            _render_quality_tab(pack, frame)
         else:
             _render_table_tab(frame)

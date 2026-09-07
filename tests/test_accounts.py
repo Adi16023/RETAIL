@@ -233,8 +233,9 @@ def test_book_table_shows_confidence_columns(catalogue):
     assert "Predicted revenue at risk" in html
     assert "Probability of leakage" not in html, "the classifier's number left the book on Sept 8"
     assert "AI agent confidence" not in html, "the AI's level is on the verdict banner, not in the book"
-    # ACC-101's 24-month lifetime value at risk, as rupees.
-    assert "₹715,819" in html
+    # ACC-101's 24-month lifetime value at risk, as rupees: value per month
+    # lost (₹88,604 → ₹56,356) x 24 flat.
+    assert "₹773,947" in html
 
 
 def test_book_table_shows_identity_signal_verdict_and_confidences_only(catalogue):

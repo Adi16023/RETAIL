@@ -36,8 +36,8 @@ PRODUCTS_SHOWN = 10
 def _breakdown_table(rows: list[dict], label: str, basis: str) -> None:
     frame = pd.DataFrame([{
         label: r["name"],
-        f"{basis.capitalize()} / month before": r["value_per_month_baseline"],
-        f"{basis.capitalize()} / month now": r["value_per_month_recent"],
+        f"{basis.capitalize()} / month baseline": r["value_per_month_baseline"],
+        f"{basis.capitalize()} / month recent": r["value_per_month_recent"],
         "Baseline path": r["cltv_baseline"],
         "Current path": r["cltv_current"],
         "Value at risk": r["value_at_risk"],
@@ -45,8 +45,8 @@ def _breakdown_table(rows: list[dict], label: str, basis: str) -> None:
     st.dataframe(
         frame, width="stretch", hide_index=True,
         column_config={
-            f"{basis.capitalize()} / month before": st.column_config.NumberColumn(format="₹%.0f"),
-            f"{basis.capitalize()} / month now": st.column_config.NumberColumn(format="₹%.0f"),
+            f"{basis.capitalize()} / month baseline": st.column_config.NumberColumn(format="₹%.0f"),
+            f"{basis.capitalize()} / month recent": st.column_config.NumberColumn(format="₹%.0f"),
             "Baseline path": st.column_config.NumberColumn(format="₹%.0f"),
             "Current path": st.column_config.NumberColumn(format="₹%.0f"),
             "Value at risk": st.column_config.NumberColumn(format="₹%.0f"),
@@ -100,11 +100,11 @@ def render_lifetime_account(pack: dict) -> None:
     theme.kpi_row([
         {"label": f"Lifetime value, {HORIZON_SHOWN} months, baseline path", "value": _money(shown["cltv_baseline"]),
          "delta": f"{basis} per month {_money(before)}", "tone": "neutral",
-         "hint": "Expected months of continued buying over the horizon, at the value per month the account earned before the recent window."},
+         "hint": f"{HORIZON_SHOWN} months at the value per month the account earned before the recent window."},
         {"label": f"Lifetime value, {HORIZON_SHOWN} months, current path", "value": _money(shown["cltv_current"]),
          "delta": f"{basis} per month {_money(now)}",
          "tone": "bad" if change < 0 else ("good" if change > 0 else "neutral"),
-         "hint": "The same expected months at the value per month earned in the recent window."},
+         "hint": f"The same {HORIZON_SHOWN} months at the value per month earned in the recent window."},
         {"label": "Value at risk", "value": _money(risk),
          "delta": "gap between the two paths" if risk else "none — current path is not below baseline",
          "tone": "bad" if risk else "good",
@@ -145,7 +145,7 @@ def render_lifetime_account(pack: dict) -> None:
     )
 
     # Where the value sits: the same projection one level down, by category
-    # and by product. Every line shares the account's expected months, so
+    # and by product. Every line is value per month x the same 24 months, so
     # the parts add back to the account total.
     breakdown = block.get("breakdown") or {}
     horizon = breakdown.get("horizon_months", HORIZON_SHOWN)

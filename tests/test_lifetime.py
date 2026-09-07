@@ -154,7 +154,8 @@ def test_options_carry_over_the_horizon_as_a_share_of_the_gap(df, fitted):
     block = pack["_lifetime_value"]
     effects = lifetime_effect_of_options(block, price_options(pack, None))
     assert effects and all(e["recovers_over_horizon"] > 0 for e in effects)
-    months = block["horizons_months"]["24"]["active_months_discounted"]
+    months = block["horizons_months"]["24"]["months"]
+    assert months == 24, "money is value per month x the flat horizon"
     assert effects[0]["recovers_over_horizon"] == round(effects[0]["recovers_per_month"] * months)
     assert all(0 < e["share_of_value_at_risk"] <= 1 for e in effects)
 

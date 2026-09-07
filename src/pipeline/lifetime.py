@@ -43,9 +43,14 @@ from .changepoint import RECENT_MONTHS
 
 DAYS_PER_MONTH = 30.4375
 HORIZONS_MONTHS = (12, 24)
-# Money a year out is worth a little less than money today. Small over 24
-# months, but a stated constant rather than an implicit zero.
-ANNUAL_DISCOUNT_RATE = 0.10
+# Every rupee figure is value per month x the horizon months, flat: 24 for
+# the 24-month view, 12 for the 12-month view. A 10% time discount and the
+# BG/NBD expected-months adjustment were applied until Sept 8 and removed at
+# the user's request: they turned 24 into 22.2 on every account of this book
+# (nobody has gone dark, so the model added nothing the discount did not
+# take away) and a reader could not reproduce the tiles by hand. The BG/NBD
+# fit still reports expected orders, expected active months and the
+# probability of still buying, for information; it no longer scales money.
 # Below either floor the BG/NBD conditioning has almost nothing to condition
 # on, and the margin-per-order split has no baseline. Six orders means five
 # repeat orders; eight months is the same floor the trend test uses.
@@ -155,19 +160,6 @@ def expected_orders(params: dict, x: float, t_x: float, T: float, t: float) -> f
     return value
 
 
-def discounted_expected_orders(params: dict, x: float, t_x: float, T: float, horizon: int,
-                               annual_rate: float = ANNUAL_DISCOUNT_RATE) -> float:
-    """Expected orders over `horizon` months, each month's increment
-    discounted back to today."""
-    total, previous = 0.0, 0.0
-    for month in range(1, horizon + 1):
-        cumulative = expected_orders(params, x, t_x, T, float(month))
-        increment = max(0.0, cumulative - previous)
-        total += increment / (1 + annual_rate) ** (month / 12)
-        previous = cumulative
-    return total
-
-
 # --- Value per active month ---------------------------------------------------------
 
 def _value_per_month(acc_df: pd.DataFrame) -> dict:
@@ -216,32 +208,30 @@ def _value_breakdown(acc_df: pd.DataFrame, basis: str, by: str, active_months: f
     for name, group in d.groupby(by):
         before = float(group[group["month"] < cutoff][basis].sum()) / baseline_months
         recent = float(group[group["month"] >= cutoff][basis].sum()) / RECENT_MONTHS
-        baseline_value, current_value = before * active_months, recent * active_months
+        baseline_value, current_value = round(before * active_months), round(recent * active_months)
         rows.append({
             "name": str(name),
             "value_per_month_baseline": round(before, 2),
             "value_per_month_recent": round(recent, 2),
-            "cltv_baseline": round(baseline_value),
-            "cltv_current": round(current_value),
-            "value_change": round(current_value - baseline_value),
-            "value_at_risk": round(max(0.0, baseline_value - current_value)),
+            "cltv_baseline": baseline_value,
+            "cltv_current": current_value,
+            "value_change": current_value - baseline_value,
+            "value_at_risk": max(0, baseline_value - current_value),
         })
     rows.sort(key=lambda r: (-r["value_at_risk"], -r["cltv_baseline"], r["name"]))
     return rows[:limit] if limit else rows
 
 
-def expected_active_months(params: dict, x: float, t_x: float, T: float, horizon: int,
-                           annual_rate: float = ANNUAL_DISCOUNT_RATE) -> tuple[float, float]:
-    """(undiscounted, discounted) months of continued buying expected over
-    the horizon: the expected orders divided by the account's long-run order
-    rate, so a customer expected to keep ordering at their usual pace over
-    12 months counts as 12 active months."""
+def expected_active_months(params: dict, x: float, t_x: float, T: float, horizon: int) -> float:
+    """Months of continued buying expected over the horizon: the expected
+    orders divided by the account's long-run order rate, capped at the
+    horizon, so a customer expected to keep ordering at their usual pace over
+    12 months counts as 12 active months. Reported for information; the
+    money uses the flat horizon (see HORIZONS_MONTHS)."""
     rate = x / T if T > 0 else 0.0
     if rate <= 0:
-        return 0.0, 0.0
-    undiscounted = min(float(horizon), expected_orders(params, x, t_x, T, float(horizon)) / rate)
-    discounted = min(float(horizon), discounted_expected_orders(params, x, t_x, T, horizon, annual_rate) / rate)
-    return undiscounted, discounted
+        return 0.0
+    return min(float(horizon), expected_orders(params, x, t_x, T, float(horizon)) / rate)
 
 
 # --- The block --------------------------------------------------------------------------------
@@ -297,37 +287,36 @@ def account_lifetime_value(df: pd.DataFrame, account_id: str,
     horizons = {}
     for horizon in HORIZONS_MONTHS:
         exp_orders = expected_orders(params, x, t_x, T, float(horizon))
-        active, active_discounted = expected_active_months(params, x, t_x, T, horizon)
-        baseline_value = active_discounted * value["baseline"]
-        current_value = active_discounted * value["recent"]
+        active = expected_active_months(params, x, t_x, T, horizon)
+        # Value per month x the horizon, flat. The model's expected months
+        # sit alongside for information and do not scale the money.
+        # Rounded first, then differenced, so the gap on screen is exactly
+        # the difference of the two tiles beside it.
+        baseline_value = round(horizon * value["baseline"])
+        current_value = round(horizon * value["recent"])
         horizons[str(horizon)] = {
+            "months": horizon,
             "expected_orders": round(exp_orders, 2),
             "expected_active_months": round(active, 2),
-            "active_months_discounted": round(active_discounted, 3),
-            "cltv_baseline": round(baseline_value),
-            "cltv_current": round(current_value),
-            "value_change": round(current_value - baseline_value),
-            "value_at_risk": round(max(0.0, baseline_value - current_value)),
+            "cltv_baseline": baseline_value,
+            "cltv_current": current_value,
+            "value_change": current_value - baseline_value,
+            "value_at_risk": max(0, baseline_value - current_value),
         }
 
     # The two paths month by month over the longest horizon, for the chart:
-    # cumulative discounted value on the baseline and on the current path.
+    # cumulative value on the baseline and on the current path.
     longest = max(HORIZONS_MONTHS)
-    cumulative = []
-    for month in range(1, longest + 1):
-        _, active_discounted = expected_active_months(params, x, t_x, T, month)
-        cumulative.append({
-            "month": month,
-            "baseline": round(active_discounted * value["baseline"]),
-            "current": round(active_discounted * value["recent"]),
-        })
+    cumulative = [{
+        "month": month,
+        "baseline": round(month * value["baseline"]),
+        "current": round(month * value["recent"]),
+    } for month in range(1, longest + 1)]
 
-    longest_key = str(longest)
-    breakdown_months = horizons[longest_key]["active_months_discounted"]
     breakdown = {
         "horizon_months": longest,
-        "category": _value_breakdown(acc_df, value["basis"], "category", breakdown_months),
-        "product": _value_breakdown(acc_df, value["basis"], "product_id", breakdown_months, limit=MAX_PRODUCTS_LISTED),
+        "category": _value_breakdown(acc_df, value["basis"], "category", float(longest)),
+        "product": _value_breakdown(acc_df, value["basis"], "product_id", float(longest), limit=MAX_PRODUCTS_LISTED),
         "note": (
             "Lines share the account's expected months of continued buying, so their values add "
             "back to the account total. Line losses can exceed the account's value at risk because "
@@ -347,11 +336,11 @@ def account_lifetime_value(df: pd.DataFrame, account_id: str,
         "value_per_month_baseline": value["baseline"],
         "value_per_month_recent": value["recent"],
         "horizons_months": horizons,
-        "annual_discount_rate": ANNUAL_DISCOUNT_RATE,
         "book_fit": {k: (round(v, 4) if isinstance(v, float) else v) for k, v in params.items()},
         "note": (
-            "Lifetime value = months of continued buying expected over the horizon (BG/NBD, fitted "
-            "on the whole book) x value per month, discounted. Baseline uses the value per month "
+            "Lifetime value = value per month x the horizon months (12 or 24), flat. Expected orders "
+            "and expected active months (BG/NBD, fitted on the whole book) are reported alongside "
+            "for information and do not scale the money. Baseline uses the value per month "
             "before the recent window; current uses the recent window. Value at risk is the gap — "
             "the same loss the monthly figures show, on a longer clock. Never add it to monthly "
             "revenue at risk."
@@ -382,11 +371,11 @@ def book_position(blocks: dict[str, dict], account_id: str, horizon: str = "24")
 
 def lifetime_effect_of_options(block: dict, options: list[dict], horizon: str = "24") -> list[dict]:
     """What each priced intervention recovers over the horizon: its monthly
-    margin recovery times the same discounted active months the projection
+    margin recovery times the same flat horizon months the projection
     uses, and the share of the value at risk that closes."""
     if (block or {}).get("status") != "scored" or not options:
         return []
-    months = block["horizons_months"][horizon]["active_months_discounted"]
+    months = block["horizons_months"][horizon]["months"]
     at_risk = block["horizons_months"][horizon]["value_at_risk"]
     rows = []
     for option in options:
@@ -432,7 +421,7 @@ def backtest(df: pd.DataFrame, holdout_months: int = 6) -> dict:
             continue
         x, t_x, T = float(row["frequency"]), float(row["recency"]), float(row["age"])
         predicted = expected_orders(params, x, t_x, T, float(holdout_months))
-        active, _ = expected_active_months(params, x, t_x, T, holdout_months)
+        active = expected_active_months(params, x, t_x, T, holdout_months)
         rows.append({
             "account_id": str(account_id),
             "predicted_orders": round(predicted, 1),

@@ -1,36 +1,23 @@
 """
-The AryaChat panel: a manager asks about any account, or about the whole
-book, in as many separate chats as they like, each with its own context.
+Floating AryaChat widget: a manager asks about any account, or the whole
+book, from a bottom-right chatbot that expands to fullscreen on its own.
 
-The screen follows youkti-app's Arya chat: New chat lives in the app
-sidebar; recent chats sit in a secondary sidebar on this page only; the
-idle hero and composer fill the rest. A conversation is created only when
-the first message is sent. Nothing is pre-selected and nothing is
-pre-written — the manager types the question, the model works out which
-account (if any) it is about, calls the tool that holds the answer, and
-answers from it. A turn is shown as it happens: tool chips appear while a
-look-up runs and flip to done when it returns (open one to see what came
-back), the answer streams in as the model writes it, and 2-3 next-question
-chips land under the finished answer; tapping one sends it verbatim.
-Chips are ephemeral — they belong to the latest answer only and are never
-stored.
+Closed -> a launcher button. Open -> a docked panel over whatever page they
+are on. Fullscreen -> the same chat, edge to edge, still independent of
+Detect / Investigate. Recent chats and New chat live inside the widget.
 
-The account the chat is currently about is shown above the composer and
-carried into the next question, so "and the margin?" needs no repetition.
-
-Every answer shows what it rests on — the tools it drew figures from — and
-a figure that appears in none of them is flagged, because that figure came
-from nowhere.
+Chrome (FAB, rail, actions, composer, hero) uses streamlit-shadcn-ui so
+layout is a real React tree instead of Streamlit CSS flex hacks. The
+message thread stays on Streamlit chat_message for streaming tool chips.
 """
 
 from __future__ import annotations
 
 import time
-from html import escape
-from urllib.parse import quote
+from functools import partial
 
 import streamlit as st
-import streamlit.components.v1 as components
+import streamlit_shadcn_ui as ui
 
 from pipeline.aryachat import (
     COMPACT_AFTER_TURNS,
@@ -63,11 +50,7 @@ TOOL_LABELS = {
     "get_priced_options": "priced options",
 }
 
-# Re-render the streaming bubble at most this often. Groq writes several
-# hundred tokens a second; a frame per token is a websocket message per
-# token for nothing the eye can follow.
 STREAM_FRAME_SECONDS = 0.05
-
 SCOPE = "book"
 
 
@@ -83,8 +66,6 @@ def _chips_key(key: str) -> str:
     return f"{key}-chips"
 
 
-# --- Rendering a stored turn -------------------------------------------------------------
-
 def _describe_arguments(arguments: dict) -> str:
     parts = []
     for key, value in (arguments or {}).items():
@@ -95,11 +76,6 @@ def _describe_arguments(arguments: dict) -> str:
 
 
 def _render_tool_log(log: list[dict], unsourced: list[str]) -> None:
-    """One collapsed row per turn — "Based on: …" — that opens to show each
-    call's arguments and a preview of what it returned. The figure check's
-    findings live in here too, as a quiet line for whoever opens it — never
-    as a warning in the thread, which read as an alarm on answers that were
-    fine apart from a rounded aside."""
     names = list(dict.fromkeys(entry["name"] for entry in log))
     with st.expander("Based on: " + ", ".join(_label(n) for n in names)):
         if unsourced:
@@ -123,11 +99,9 @@ def _render_turn(turn: dict, names: dict) -> None:
         st.markdown(turn.get("text", ""))
         if role != "assistant":
             return
-        # Chats saved by the earlier, structured version of this loop carried
-        # a "what the data cannot answer" field; still shown if present.
         gap = clean_text(turn.get("cannot_answer_because"))
         if gap:
-            st.caption(f"⚠ Not in the data: {gap}")
+            st.caption(f"Not in the data: {gap}")
         log = turn.get("tool_log") or []
         if log:
             _render_tool_log(log, turn.get("unsourced_figures") or [])
@@ -137,17 +111,7 @@ def _render_turn(turn: dict, names: dict) -> None:
             st.caption("Stopped at the step limit — this is what it had found by then.")
 
 
-# --- The live turn ----------------------------------------------------------------------
-
 class _LiveTurn:
-    """Turns loop events into screen updates while a question is answered.
-
-    Tool chips go in a container above the answer so the order on screen is
-    the order things happened: look something up, then write. Text is
-    accumulated and re-rendered with a cursor; a `retry` clears it, because
-    the draft it held was refused and a fresh one is about to stream.
-    """
-
     def __init__(self, activity, slot):
         self._activity = activity
         self._slot = slot
@@ -196,8 +160,6 @@ class _LiveTurn:
         self._render(final=True)
 
 
-# --- Sidebar (youkti Arya chat: one New chat, search, grouped quiet rows) ---------------
-
 def _consume_nav(key: str) -> None:
     if "delete_chat" in st.query_params:
         st.session_state["arya_delete_id"] = st.query_params["delete_chat"]
@@ -206,85 +168,49 @@ def _consume_nav(key: str) -> None:
         return
     requested = st.query_params["chat"]
     del st.query_params["chat"]
+    st.session_state["arya_open"] = True
     if requested == "new":
         st.session_state[key] = None
-        st.session_state["home_page"] = "ask"
         st.session_state.pop(_chips_key(key), None)
         return
     st.session_state[key] = requested
-    st.session_state["home_page"] = "ask"
 
 
 def _confirm_delete(fingerprint: str, key: str) -> None:
     chat_id = st.session_state.get("arya_delete_id")
     if not chat_id:
         return
-
-    @st.dialog("Delete this chat?")
-    def _dialog() -> None:
-        st.write("This conversation and its messages will be removed. This can't be undone.")
-        cancel, confirm = st.columns(2)
-        if cancel.button("Cancel", width="stretch"):
-            st.session_state.pop("arya_delete_id", None)
-            st.rerun()
-        if confirm.button("Delete", type="primary", width="stretch"):
-            chatstore.delete_chat(SCOPE, fingerprint, chat_id)
-            if st.session_state.get(key) == chat_id:
-                st.session_state.pop(key, None)
-            st.session_state.pop(_chips_key(key), None)
-            st.session_state.pop("arya_delete_id", None)
-            st.rerun()
-
-    _dialog()
-
-
-def _sidebar_html(chats: list[dict], active_id: str | None) -> str:
-    if not chats:
-        return ""
-    blocks = []
-    for label, items in chatstore.group_conversations(chats):
-        rows = []
-        for row in items:
-            chat_id = quote(row["chat_id"], safe="")
-            active = " rl-arya-row-active" if row["chat_id"] == active_id else ""
-            rows.append(
-                f'<div class="rl-arya-row{active}">'
-                f'<a class="rl-arya-row-title" href="?chat={chat_id}">{escape(row["title"])}</a>'
-                f'<a class="rl-arya-row-del" href="?delete_chat={chat_id}" title="Delete">×</a>'
-                f"</div>"
-            )
-        blocks.append(
-            f'<p class="rl-arya-group">{escape(label)}</p>'
-            f'<div class="rl-arya-group-list">{"".join(rows)}</div>'
-        )
-    return "".join(blocks)
+    decision = ui.alert_dialog(
+        show=True,
+        title="Delete this chat?",
+        description="This conversation and its messages will be removed. This can't be undone.",
+        confirm_label="Delete",
+        cancel_label="Cancel",
+        key="arya-delete-dialog",
+    )
+    if decision is True:
+        chatstore.delete_chat(SCOPE, fingerprint, chat_id)
+        if st.session_state.get(key) == chat_id:
+            st.session_state.pop(key, None)
+        st.session_state.pop(_chips_key(key), None)
+        st.session_state.pop("arya_delete_id", None)
+        st.rerun()
+    if decision is False:
+        st.session_state.pop("arya_delete_id", None)
 
 
 def sync_chat_nav(fingerprint: str) -> None:
-    """Apply sidebar / URL navigation before the page body renders."""
+    """Apply URL chat selection / delete before the page body renders."""
     key = _state_key(fingerprint)
     if st.session_state.pop("arya_force_idle", False):
         st.session_state[key] = None
         st.session_state.pop(_chips_key(key), None)
+        st.session_state["arya_open"] = True
     _consume_nav(key)
     _confirm_delete(fingerprint, key)
 
 
-def render_chat_sidebar(fingerprint: str) -> None:
-    """Recent chats — secondary sidebar on the AryaChat page only."""
-    key = _state_key(fingerprint)
-    chats = [
-        row for row in chatstore.list_chats(SCOPE, fingerprint)
-        if row["turn_count"] > 0
-    ]
-    st.markdown('<p class="rl-arya-side-title">Recent chats</p>', unsafe_allow_html=True)
-    html = _sidebar_html(chats, st.session_state.get(key))
-    if html:
-        st.markdown(html, unsafe_allow_html=True)
-
-
 def _compact(chat: dict, make_client, model_id: str) -> str | None:
-    """Fold everything except the last KEEP_LAST_TURNS into the summary."""
     turns = chat.get("turns") or []
     through = len(turns) - KEEP_LAST_TURNS
     start = chat.get("summarised_through", 0)
@@ -296,13 +222,6 @@ def _compact(chat: dict, make_client, model_id: str) -> str | None:
     chatstore.save_chat(chat)
     return summary
 
-
-# --- Next-question chips ----------------------------------------------------------------
-#
-# Kept in session state, never on disk: they belong to the latest answer of
-# one chat and are consumed the moment one is tapped. Keyed by the turn count
-# they were produced at, so a chip from an earlier answer can never surface
-# under a later one.
 
 def _remember_chips(key: str, chat: dict, chips: list[str]) -> None:
     if chips:
@@ -321,8 +240,6 @@ def _chips_for(key: str, chat: dict) -> list[str]:
 
 
 def _render_chips(key: str, chat: dict) -> str | None:
-    """The chips under the latest answer. Returns the tapped one, if any —
-    and forgets the set, so a rerun cannot send it twice."""
     chips = _chips_for(key, chat)
     if not chips:
         return None
@@ -335,89 +252,161 @@ def _render_chips(key: str, chat: dict) -> str | None:
     return picked
 
 
-# --- The panel ------------------------------------------------------------------------------
+def _open_widget() -> None:
+    st.session_state["arya_open"] = True
 
-def render_aryachat(df, fingerprint: str, model_id: str, choice_label: str, make_client,
-                    pack_for, report_for, names: dict, initial_focus: str | None = None) -> None:
-    """`pack_for(account_id)` / `report_for(account_id)` reach the pipeline's
-    cached outputs; `initial_focus` seeds a new chat with the account the
-    manager has open elsewhere in the app, if any."""
-    key = _state_key(fingerprint)
-    chat_id = st.session_state.get(key)
-    chat = chatstore.load_chat(SCOPE, fingerprint, chat_id) if chat_id else None
-    if chat is not None and not (chat.get("turns") or []):
-        chat = None
-        st.session_state[key] = None
-    idle = chat is None
-    tapped = None
 
-    # Fixed full-height rail beside the main Streamlit sidebar. Column CSS
-    # cannot stretch past content height, so the divider is a real DOM node.
-    st.html(
-        """
-        <div class="rl-arya-rail" aria-hidden="true"></div>
-        <script>
-        (function () {
-          function place() {
-            const rail = document.querySelector(".rl-arya-rail");
-            const main = document.querySelector('[data-testid="stMain"]');
-            if (!rail || !main) return;
-            const box = main.getBoundingClientRect();
-            rail.style.left = box.left + "px";
-            rail.style.top = box.top + "px";
-            rail.style.height = box.height + "px";
-            rail.style.bottom = "auto";
-          }
-          place();
-          window.addEventListener("resize", place);
-          const main = document.querySelector('[data-testid="stMain"]');
-          if (main && window.ResizeObserver) new ResizeObserver(place).observe(main);
-          requestAnimationFrame(place);
-          setTimeout(place, 50);
-          setTimeout(place, 250);
-        })();
-        </script>
-        """,
-        unsafe_allow_javascript=True,
-    )
+def _close_widget() -> None:
+    st.session_state["arya_open"] = False
+    st.session_state["arya_fullscreen"] = False
+    st.session_state.pop("arya_pending_question", None)
 
-    with st.container(key="arya_shell"):
-        side, main = st.columns([1, 3], gap="small")
-        with side:
-            with st.container(key="arya_chat_nav"):
-                render_chat_sidebar(fingerprint)
-        with main:
-            if idle:
-                st.markdown(
-                    '<div class="rl-arya-hero"><h1>How can I help with your accounts?</h1></div>',
-                    unsafe_allow_html=True,
-                )
-                components.html(
-                    "<script>const d=window.parent.document;"
-                    "['stAppViewContainer','stMain'].forEach(id=>{"
-                    "const el=d.querySelector('[data-testid=\"'+id+'\"]');"
-                    "if(el)el.scrollTop=0;});"
-                    "d.documentElement.scrollTop=0;d.body.scrollTop=0;"
-                    "window.parent.scrollTo(0,0);</script>",
-                    height=0,
-                )
-            else:
-                if chat.get("summary"):
-                    with st.expander("What the earlier turns established"):
-                        st.markdown(chat["summary"])
-                for turn in chat.get("turns") or []:
-                    _render_turn(turn, names)
-                tapped = _render_chips(key, chat)
 
-    question = st.chat_input("Ask about an account, or about the book…", key=f"{key}-input")
-    question = question or tapped
-    if not question:
+def _collapse_fullscreen() -> None:
+    """Leave fullscreen and return to the docked panel."""
+    st.session_state["arya_fullscreen"] = False
+    st.session_state["arya_open"] = True
+
+
+def _toggle_fullscreen() -> None:
+    st.session_state["arya_fullscreen"] = not st.session_state.get("arya_fullscreen", False)
+    if st.session_state["arya_fullscreen"]:
+        st.session_state["arya_open"] = True
+
+
+def _start_new_chat(key: str) -> None:
+    st.session_state[key] = None
+    st.session_state.pop(_chips_key(key), None)
+    st.session_state.pop("arya_pending_question", None)
+    st.session_state["arya_open"] = True
+
+
+def _select_chat(key: str, chat_id: str) -> None:
+    st.session_state[key] = chat_id
+    st.session_state["arya_open"] = True
+
+
+def _mark_delete(chat_id: str) -> None:
+    st.session_state["arya_delete_id"] = chat_id
+
+
+def _render_left_rail(chats: list[dict], *, key: str, active_id: str | None, fullscreen: bool) -> None:
+    """History scrolls above; New chat + exit/close are pinned to the rail bottom."""
+    with st.container(key="arya_left_scroll"):
+        with ui.elements(key=f"arya-chats-{key}-{'full' if fullscreen else 'dock'}") as el:
+            el.heading("Recent chats", level=4)
+            with el.stack(key="chat-list", gap="xs"):
+                if not chats:
+                    el.text("No chats yet", variant="muted")
+                else:
+                    for group_label, items in chatstore.group_conversations(chats):
+                        el.text(group_label, variant="caption")
+                        for row in items:
+                            cid = row["chat_id"]
+                            title = (row.get("title") or "Chat")[:48]
+                            with el.stack(
+                                key=f"row-{cid}",
+                                direction="horizontal",
+                                gap="xs",
+                                align="center",
+                            ):
+                                el.button(
+                                    title,
+                                    key=f"open-{cid}",
+                                    variant="secondary" if cid == active_id else "ghost",
+                                    stretch=True,
+                                    size="sm",
+                                    on_click=partial(_select_chat, key, cid),
+                                )
+                                el.button(
+                                    "×",
+                                    key=f"del-{cid}",
+                                    variant="ghost",
+                                    size="icon-sm",
+                                    help="Delete chat",
+                                    on_click=partial(_mark_delete, cid),
+                                )
+
+    # Bottom of the sidebar — always, regardless of shadcn flex quirks.
+    with st.container(key="arya_left_foot"):
+        st.button(
+            "New chat",
+            key="arya-rail-new",
+            type="primary",
+            use_container_width=True,
+            on_click=_start_new_chat,
+            args=(key,),
+        )
+        if fullscreen:
+            st.button(
+                "Exit fullscreen",
+                key="arya-rail-exit-full",
+                use_container_width=True,
+                on_click=_collapse_fullscreen,
+            )
+        else:
+            st.button(
+                "Fullscreen",
+                key="arya-rail-full",
+                use_container_width=True,
+                on_click=_toggle_fullscreen,
+            )
+            st.button(
+                "Close",
+                key="arya-rail-close",
+                use_container_width=True,
+                on_click=_close_widget,
+            )
+
+
+def _render_composer(key: str, turn_count: int) -> str | None:
+    """Native Streamlit form — reliable send button, no missing chrome."""
+    with st.form(key=f"{key}-composer-{turn_count}", clear_on_submit=True, border=False):
+        c1, c2 = st.columns([8, 1], gap="small")
+        with c1:
+            typed = st.text_input(
+                "Message",
+                placeholder="Ask about an account, or about the book…",
+                label_visibility="collapsed",
+                key=f"{key}-typed-{turn_count}",
+            )
+        with c2:
+            sent = st.form_submit_button("↑", type="primary", use_container_width=True)
+    if sent:
+        text = (typed or "").strip()
+        return text or None
+    return None
+
+
+def _queue_question(question: str) -> None:
+    """Defer the model call to the next fragment paint so it runs in the thread."""
+    text = (question or "").strip()
+    if not text:
         return
+    st.session_state["arya_pending_question"] = text
+    st.rerun(scope="fragment")
+
+
+def _answer_question(
+    question: str,
+    *,
+    chat: dict | None,
+    key: str,
+    fingerprint: str,
+    model_id: str,
+    make_client,
+    df,
+    pack_for,
+    report_for,
+    initial_focus: str | None,
+) -> None:
+    """Stream the reply inside the thread pane; always ends with a fragment rerun."""
+    st.session_state.pop("arya_pending_question", None)
+
     if chat is None:
         chat = chatstore.new_chat(SCOPE, fingerprint, model_id, focus_account=initial_focus)
         st.session_state[key] = chat["chat_id"]
 
-    # Auto-compact when the un-summarised tail has grown past the threshold.
     if len(chatstore.unsummarised_turns(chat)) > COMPACT_AFTER_TURNS:
         try:
             _compact(chat, make_client, model_id)
@@ -433,26 +422,28 @@ def render_aryachat(df, fingerprint: str, model_id: str, choice_label: str, make
         activity = st.container()
         slot = st.empty()
         live_turn = _LiveTurn(activity, slot)
-        try:
-            client = make_client()
-            answer = ask(
-                client, df, question,
-                pack_for=pack_for, report_for=report_for,
-                focus_account=chat.get("focus_account"),
-                turns=chat["turns"][chat.get("summarised_through", 0):-1],
-                summary=chat.get("summary"), model=model_id,
-                on_event=live_turn,
-            )
-        except ChatError as e:
-            error = f"The model did not answer: {e}"
-        except Exception as e:  # provider errors surface as text, never a crash
-            error = f"Could not reach the model: {e}"
-        else:
-            error = None
+        with st.spinner("Looking that up…"):
+            try:
+                client = make_client()
+                answer = ask(
+                    client, df, question,
+                    pack_for=pack_for, report_for=report_for,
+                    focus_account=chat.get("focus_account"),
+                    turns=chat["turns"][chat.get("summarised_through", 0):-1],
+                    summary=chat.get("summary"), model=model_id,
+                    on_event=live_turn,
+                )
+            except ChatError as e:
+                error = f"The model did not answer: {e}"
+            except Exception as e:
+                error = f"Could not reach the model: {e}"
+            else:
+                error = None
         if error:
-            slot.error(error)
             chatstore.drop_last_turn(chat)
             chatstore.save_chat(chat)
+            st.session_state["arya_flash_error"] = error
+            st.rerun(scope="fragment")
             return
         live_turn.finish(answer["answer"])
         chatstore.append_turn(
@@ -467,4 +458,127 @@ def render_aryachat(df, fingerprint: str, model_id: str, choice_label: str, make
         chatstore.set_focus(chat, answer.get("focus_account"))
         chatstore.save_chat(chat)
         _remember_chips(key, chat, answer.get("follow_ups") or [])
-    st.rerun()
+    st.rerun(scope="fragment")
+
+
+@st.fragment
+def _arya_fragment(
+    df, fingerprint: str, model_id: str, make_client,
+    pack_for, report_for, names: dict, initial_focus: str | None,
+) -> None:
+    """Chat chrome reruns alone so Fullscreen / Close / New chat do not reload the app."""
+    if "arya_open" not in st.session_state:
+        st.session_state["arya_open"] = False
+    if "arya_fullscreen" not in st.session_state:
+        st.session_state["arya_fullscreen"] = False
+
+    key = _state_key(fingerprint)
+    chat_id = st.session_state.get(key)
+    chat = chatstore.load_chat(SCOPE, fingerprint, chat_id) if chat_id else None
+    if chat is not None and not (chat.get("turns") or []):
+        chat = None
+        st.session_state[key] = None
+    pending = (st.session_state.get("arya_pending_question") or "").strip() or None
+    idle = chat is None and not pending
+    open_ = bool(st.session_state["arya_open"])
+    fullscreen = bool(st.session_state["arya_fullscreen"]) and open_
+
+    if not open_:
+        with st.container(key="arya_fab"):
+            if st.button("Ask Arya", key="arya-fab-open", type="primary", on_click=_open_widget):
+                pass
+        return
+
+    shell_key = "arya_full" if fullscreen else "arya_dock"
+    chats = [
+        row for row in chatstore.list_chats(SCOPE, fingerprint)
+        if row["turn_count"] > 0
+    ]
+
+    with st.container(key=shell_key):
+        # st.columns — Streamlit's real side-by-side primitive. CSS forces
+        # nowrap so the right pane (title + chat bar) cannot collapse away.
+        left, right = st.columns([1, 2.6], gap="small")
+        with left:
+            with st.container(key="arya_left"):
+                _render_left_rail(
+                    chats,
+                    key=key,
+                    active_id=st.session_state.get(key),
+                    fullscreen=fullscreen,
+                )
+
+        with right:
+            with st.container(key="arya_right"):
+                if fullscreen:
+                    tcol, xcol = st.columns([12, 1], gap="small")
+                    with tcol:
+                        st.markdown(
+                            '<p class="rl-arya-widget-title">Arya</p>',
+                            unsafe_allow_html=True,
+                        )
+                    with xcol:
+                        st.button(
+                            "×",
+                            key="arya-full-collapse",
+                            help="Back to chat panel",
+                            on_click=_collapse_fullscreen,
+                            use_container_width=True,
+                        )
+                else:
+                    st.markdown(
+                        '<p class="rl-arya-widget-title">Arya</p>',
+                        unsafe_allow_html=True,
+                    )
+
+                # Thread first, composer last — messages stay above the chat bar.
+                with st.container(key="arya_thread"):
+                    flash = st.session_state.pop("arya_flash_error", None)
+                    if flash:
+                        st.error(flash)
+                    if idle:
+                        st.markdown(
+                            '<div class="rl-arya-hero">'
+                            '<p class="rl-arya-hero-title">How can I help with your accounts?</p>'
+                            '<p class="rl-arya-hero-sub">Ask about one account, or about the book.</p>'
+                            "</div>",
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        if chat and chat.get("summary"):
+                            with st.expander("What the earlier turns established"):
+                                st.markdown(chat["summary"])
+                        for turn in (chat.get("turns") or []) if chat else []:
+                            _render_turn(turn, names)
+                        if pending:
+                            _answer_question(
+                                pending,
+                                chat=chat,
+                                key=key,
+                                fingerprint=fingerprint,
+                                model_id=model_id,
+                                make_client=make_client,
+                                df=df,
+                                pack_for=pack_for,
+                                report_for=report_for,
+                                initial_focus=initial_focus,
+                            )
+                        elif chat:
+                            tapped = _render_chips(key, chat)
+                            if tapped:
+                                _queue_question(tapped)
+
+                with st.container(key="arya_composer"):
+                    turn_count = len(chat.get("turns") or []) if chat else 0
+                    typed = _render_composer(key, turn_count)
+                    if typed and not pending:
+                        _queue_question(typed)
+
+
+def render_aryachat(df, fingerprint: str, model_id: str, choice_label: str, make_client,
+                    pack_for, report_for, names: dict, initial_focus: str | None = None) -> None:
+    """Floating chatbot over the current page. Independent of Detect / Investigate."""
+    _arya_fragment(
+        df, fingerprint, model_id, make_client,
+        pack_for, report_for, names, initial_focus,
+    )

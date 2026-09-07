@@ -1,14 +1,14 @@
 """
 Revenue Leakage Investigator — the demo surface.
 
-A home sidebar with four pages. Detect opens on the account book; click a
-row to open that account. The other three pages then work on the one you
-opened:
+A home sidebar with Detect and Investigate. Detect opens on the account
+book; click a row to open that account. Investigate then works on the one
+you opened. Arya is a floating chatbot (bottom-right) that expands to
+fullscreen on its own — not a nav page.
 
   Detect       the book, then the deterministic evidence
   Investigate  the single LLM call, on demand
-  Attribute    scored against the Answer Key
-  Prioritise   several finished accounts, side by side
+  Arya         ask about any account or the whole book
 
 Headings and captions are written for an account manager, not an engineer:
 they say what the section answers, not how it is computed. Where an
@@ -105,14 +105,6 @@ theme.inject()
 # words; full titles and captions stay on the page itself.
 PAGES = [
     {
-        "key": "ask",
-        "icon": ":material/edit_square:",
-        "number": 0,
-        "label": "New chat",
-        "title": "Ask about your accounts",
-        "caption": "Ask about any account, or the whole book, in plain words.",
-    },
-    {
         "key": "data",
         "icon": ":material/analytics:",
         "number": 1,
@@ -138,6 +130,8 @@ PAGES = [
             "decide — with the figures behind it and what to do."
         ),
     },
+    # AryaChat is a floating bottom-right widget (see render_arya_widget), not a
+    # nav page — it opens over Detect / Investigate independently.
     # Attribute — scores the verdict against the workbook's Answer Key. It is
     # a validation surface, not something a manager uses, so it is hidden for
     # now. `render_score_page` stays; restore this entry (and the "score"
@@ -173,12 +167,6 @@ PAGES = [
 
 def _set_home_page(page_key: str) -> None:
     st.session_state["home_page"] = page_key
-
-
-def _new_chat() -> None:
-    """Open AryaChat on a blank thread — same as youkti's New chat."""
-    st.session_state["home_page"] = "ask"
-    st.session_state["arya_force_idle"] = True
 
 
 def _open_account(account_id: str) -> None:
@@ -664,19 +652,9 @@ book_fingerprint = cached_book_fingerprint(df)
 
 with st.sidebar:
     theme.sidebar_brand("Revenue Leakage Investigator")
-    st.button(
-        "New chat",
-        icon=":material/edit_square:",
-        key="arya-new-chat",
-        type="primary",
-        use_container_width=True,
-        on_click=_new_chat,
-    )
     sync_chat_nav(book_fingerprint)
     current_page = st.session_state["home_page"]
     for page in PAGES:
-        if page["key"] == "ask":
-            continue
         st.button(
             page["label"],
             key=f"navpage-{page['key']}",
@@ -705,7 +683,7 @@ if report is not None:
 # the finished report; hashing and assembling the pack on those clicks was
 # wasted work that showed up as lag. The account book is its own cached table.
 needs_pack = account_id is not None and (
-    current_page in ("data", "verdict", "ask")
+    current_page in ("data", "verdict")
     or (report is not None and "evidence_timeline" not in report)
 )
 pack = cached_evidence_pack(df, account_id) if needs_pack else None
@@ -1026,13 +1004,8 @@ def render_compare_page() -> None:
             render_comparison(comparison, comparison_digest)
 
 
-def render_ask_page() -> None:
-    """AryaChat: the analyst for the whole book. Needs no account picked —
-    the manager names one in the question (or asks across the book) and
-    the model resolves it and calls the tool that holds the answer. An
-    account opened elsewhere in the app seeds a new chat's focus. The same
-    model picker as Investigate; the open-source model is the practical
-    default because a chat turn has to come back in seconds."""
+def render_arya_widget() -> None:
+    """Floating AryaChat — always available over Detect / Investigate."""
     chosen = DEFAULT_MODEL_CHOICE
     spec = MODEL_CHOICES[chosen]
     model = spec["model"]
@@ -1040,10 +1013,6 @@ def render_ask_page() -> None:
     def make_client():
         return get_live_client(spec["provider"], groq_model=model if spec["provider"] == "Groq" else None)
 
-    # The chat reaches the pipeline through these two: packs are the same
-    # cached ones Detect draws, verdicts are whatever this model has saved
-    # for an account (so a brief says "not analysed" rather than borrowing
-    # another model's call).
     def pack_for(acc: str) -> dict:
         return cached_evidence_pack(df, acc)
 
@@ -1056,13 +1025,13 @@ def render_ask_page() -> None:
     )
 
 
-if current_page == "data":
-    render_data_page()
-elif current_page == "verdict":
+if current_page == "verdict":
     render_verdict_page()
 # elif current_page == "score":
 #     render_score_page()
 # elif current_page == "compare":
 #     render_compare_page()
 else:
-    render_ask_page()
+    render_data_page()
+
+render_arya_widget()

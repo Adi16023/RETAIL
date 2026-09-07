@@ -14,11 +14,29 @@ the rest off.
 
 from __future__ import annotations
 
+import base64
 from html import escape
+from pathlib import Path
 
 import streamlit as st
 
 from .palette import COLORS
+
+_YOUKTI_LOGO = Path(__file__).resolve().parents[2] / "assets" / "youkti_logo.svg"
+_YOUKTI_LOGO_URI: str | None = None
+
+
+def _youkti_logo_uri() -> str | None:
+    """data: URI for the Youkti wordmark — cached after first read."""
+    global _YOUKTI_LOGO_URI
+    if _YOUKTI_LOGO_URI is not None:
+        return _YOUKTI_LOGO_URI or None
+    if not _YOUKTI_LOGO.is_file():
+        _YOUKTI_LOGO_URI = ""
+        return None
+    raw = base64.b64encode(_YOUKTI_LOGO.read_bytes()).decode("ascii")
+    _YOUKTI_LOGO_URI = f"data:image/svg+xml;base64,{raw}"
+    return _YOUKTI_LOGO_URI
 
 def inject() -> None:
     """Apply the theme. Safe to call on every rerun — Streamlit requires it.
@@ -49,10 +67,17 @@ def header(title: str, kicker: str = "") -> None:
 
 def sidebar_brand(title: str, kicker: str = "") -> None:
     # A <p>, not <header>/<h1> — Streamlit's markdown sanitizer strips those
-    # and dumps the leftovers as visible source.
+    # and dumps the leftovers as visible source. Logo sits above the product
+    # name, matching youkti-app's header wordmark.
+    logo = _youkti_logo_uri()
+    logo_html = (
+        f'<img class="rl-side-logo" src="{logo}" alt="Youkti" />'
+        if logo else ""
+    )
     kicker_html = f'<p class="rl-kicker">{escape(kicker)}</p>' if kicker else ""
     st.markdown(
-        f'{kicker_html}<p class="rl-side-title">{escape(title)}</p>',
+        f'<div class="rl-side-brand">{logo_html}{kicker_html}'
+        f'<p class="rl-side-title">{escape(title)}</p></div>',
         unsafe_allow_html=True,
     )
 
@@ -337,7 +362,18 @@ section.main > div {{
 }}
 
 .rl-side-brand {{
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.65rem;
   margin: 0.15rem 0 1.1rem;
+}}
+.rl-side-logo {{
+  display: block;
+  height: 1.75rem;
+  width: auto;
+  max-width: 7.5rem;
+  object-fit: contain;
 }}
 .rl-side-title {{
   font-size: 1.05rem;
@@ -346,7 +382,7 @@ section.main > div {{
   line-height: 1.25;
   color: var(--rl-ink);
   text-align: left;
-  margin: 0 0 1rem;
+  margin: 0 0 0.15rem;
 }}
 
 /* Page heading — title then caption, no step number. */
@@ -1032,215 +1068,329 @@ hr, [data-testid="stDivider"] {{
   color: var(--rl-ink);
 }}
 
-/* AryaChat — one screen, like youkti. A 100dvh hero plus the pinned
-   composer used to make the page taller than the window; Streamlit then
-   scrolled to the input, so the sidebar started off the top. */
-.stApp:has([class*="st-key-arya_shell"]),
-[data-testid="stApp"]:has([class*="st-key-arya_shell"]),
-[data-testid="stAppViewContainer"]:has([class*="st-key-arya_shell"]),
-[data-testid="stMain"]:has([class*="st-key-arya_shell"]),
-.stMain:has([class*="st-key-arya_shell"]) {{
-  overflow: hidden !important;
-}}
-.stMainBlockContainer:has([class*="st-key-arya_shell"]),
-[data-testid="stMainBlockContainer"]:has([class*="st-key-arya_shell"]),
-.block-container:has([class*="st-key-arya_shell"]) {{
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
-  padding-left: 0 !important;
-  padding-right: 0 !important;
-  overflow: hidden !important;
-  height: 100vh !important;
-  max-height: 100vh !important;
-}}
-/* Fixed full-viewport rail. Streamlit keyed containers ignore height, so
-   painting on the column (or ::before on the shell) always stops mid-page. */
-.rl-arya-rail {{
+
+/* Floating AryaChat — keep this CSS minimal. Streamlit's wrappers fight
+   height:100% + absolute pinning; a forced tall dock left a white gap under
+   the chat bar. Size the dock to its content instead (max-height only). */
+[class*="st-key-arya_fab"] {{
   position: fixed !important;
-  top: 0 !important;
-  bottom: 0 !important;
-  left: 0 !important;
-  width: 17rem !important;
+  right: 1.25rem !important;
+  bottom: 1.25rem !important;
+  left: auto !important;
+  top: auto !important;
+  z-index: 1000 !important;
+  width: auto !important;
+  height: auto !important;
+  margin: 0 !important;
+}}
+[class*="st-key-arya_fab"] .stButton > button {{
+  min-height: 3rem !important;
+  padding: 0.65rem 1.15rem !important;
+  border-radius: 999px !important;
+  box-shadow: 0 10px 28px rgb(15 23 42 / 0.22) !important;
+}}
+[class*="st-key-arya_dock"] {{
+  position: fixed !important;
+  right: 1.25rem !important;
+  bottom: 1.25rem !important;
+  left: auto !important;
+  top: auto !important;
+  width: min(780px, calc(100vw - 2rem)) !important;
+  height: auto !important;
+  max-height: min(520px, calc(100vh - 3rem)) !important;
+  z-index: 1000 !important;
+  border-radius: 1rem !important;
+  background: #fff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 18px 50px rgb(15 23 42 / 0.22) !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+}}
+[class*="st-key-arya_full"] {{
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
   height: 100vh !important;
-  background: #f1f5f9 !important;
-  border-right: 1px solid #cbd5e1 !important;
-  z-index: 60 !important;
-  pointer-events: none !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+  z-index: 1200 !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  border: none !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
 }}
-[class*="st-key-arya_shell"] {{
-  position: relative;
-  z-index: 61;
-  margin: 0;
-  height: 100vh;
-  max-height: 100vh;
-  overflow: hidden;
+[class*="st-key-arya_dock"] > div,
+[class*="st-key-arya_full"] > div,
+[class*="st-key-arya_dock"] > div > [data-testid="stVerticalBlock"],
+[class*="st-key-arya_full"] > div > [data-testid="stVerticalBlock"] {{
+  width: 100% !important;
+  min-height: 0 !important;
 }}
-[class*="st-key-arya_shell"] > div,
-[class*="st-key-arya_shell"] > div > [data-testid="stVerticalBlock"],
-[class*="st-key-arya_shell"] > div > [data-testid="stVerticalBlockBorderWrapper"] {{
+[class*="st-key-arya_full"] > div,
+[class*="st-key-arya_full"] > div > [data-testid="stVerticalBlock"] {{
   height: 100% !important;
-  min-height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
 }}
-[class*="st-key-arya_shell"] [data-testid="stHorizontalBlock"] {{
-  align-items: stretch !important;
-  gap: 0 !important;
+[class*="st-key-arya_full"] > div > [data-testid="stVerticalBlock"] > div {{
+  flex: 1 1 auto !important;
   min-height: 0 !important;
   height: 100% !important;
+  overflow: hidden !important;
 }}
-/* Recent-chats column — transparent so the fixed rail shows through. */
-[class*="st-key-arya_shell"] [data-testid="stHorizontalBlock"] > div:first-child,
-[class*="st-key-arya_shell"] [data-testid="stColumn"]:first-of-type,
-[class*="st-key-arya_shell"] [data-testid="column"]:first-of-type {{
-  flex: 0 0 17rem !important;
-  width: 17rem !important;
-  min-width: 17rem !important;
-  max-width: 17rem !important;
-  height: 100% !important;
-  min-height: 100% !important;
-  align-self: stretch !important;
-  background: transparent !important;
-  border-right: none !important;
-  padding: 0 !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-}}
-[class*="st-key-arya_shell"] [data-testid="stHorizontalBlock"] > div:first-child > div,
-[class*="st-key-arya_shell"] [data-testid="stHorizontalBlock"] > div:first-child [data-testid="stVerticalBlock"],
-[class*="st-key-arya_shell"] [data-testid="stHorizontalBlock"] > div:first-child [data-testid="stVerticalBlockBorderWrapper"] {{
-  height: 100% !important;
-  min-height: 100% !important;
-  background: transparent !important;
-}}
-[class*="st-key-arya_shell"] [data-testid="stHorizontalBlock"] > div:last-child,
-[class*="st-key-arya_shell"] [data-testid="stColumn"]:last-of-type,
-[class*="st-key-arya_shell"] [data-testid="column"]:last-of-type {{
+.stApp:has([class*="st-key-arya_full"]) [data-testid="stSidebar"],
+[data-testid="stApp"]:has([class*="st-key-arya_full"]) [data-testid="stSidebar"],
+.stApp:has([class*="st-key-arya_full"]) [data-testid="stSidebarCollapsedControl"],
+[data-testid="stApp"]:has([class*="st-key-arya_full"]) [data-testid="stSidebarCollapsedControl"],
+.stApp:has([class*="st-key-arya_full"]) [data-testid="collapsedControl"],
+[data-testid="stApp"]:has([class*="st-key-arya_full"]) [data-testid="collapsedControl"] {{
+  display: none !important;
+  visibility: hidden !important;
+  width: 0 !important;
   min-width: 0 !important;
+  max-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+}}
+.stApp:has([class*="st-key-arya_full"]) [data-testid="stAppViewContainer"],
+[data-testid="stApp"]:has([class*="st-key-arya_full"]) [data-testid="stAppViewContainer"],
+.stApp:has([class*="st-key-arya_full"]) [data-testid="stMain"],
+[data-testid="stApp"]:has([class*="st-key-arya_full"]) [data-testid="stMain"],
+.stApp:has([class*="st-key-arya_full"]) .main,
+[data-testid="stApp"]:has([class*="st-key-arya_full"]) .main {{
+  margin-left: 0 !important;
+  max-width: 100% !important;
+  width: 100% !important;
+}}
+/* Side-by-side panes */
+[class*="st-key-arya_dock"] [data-testid="stHorizontalBlock"],
+[class*="st-key-arya_full"] [data-testid="stHorizontalBlock"] {{
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  gap: 0 !important;
+}}
+[class*="st-key-arya_full"] [data-testid="stHorizontalBlock"] {{
   height: 100% !important;
-  min-height: 100% !important;
-  align-self: stretch !important;
-  background: #fff !important;
+  min-height: 0 !important;
+}}
+[class*="st-key-arya_dock"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child {{
+  flex: 0 0 11rem !important;
+  width: 11rem !important;
+  min-width: 11rem !important;
+  max-width: 11rem !important;
+}}
+[class*="st-key-arya_full"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child {{
+  flex: 0 0 17.5rem !important;
+  width: 17.5rem !important;
+  min-width: 17.5rem !important;
+  max-width: 17.5rem !important;
+  height: 100% !important;
+}}
+[class*="st-key-arya_dock"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child,
+[class*="st-key-arya_full"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child {{
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  width: auto !important;
+}}
+[class*="st-key-arya_full"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child {{
+  height: 100% !important;
+}}
+[class*="st-key-arya_right"] [data-testid="stHorizontalBlock"] {{
+  height: auto !important;
+}}
+[class*="st-key-arya_right"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child,
+[class*="st-key-arya_right"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child {{
+  flex: unset !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  height: auto !important;
+}}
+/* Left rail */
+[class*="st-key-arya_left"] {{
+  background: #f8fafc !important;
+  border-right: 1px solid #e2e8f0 !important;
+  padding: 0.75rem 0.65rem !important;
+  box-sizing: border-box !important;
+}}
+[class*="st-key-arya_full"] [class*="st-key-arya_left"] {{
+  height: 100% !important;
+  background: #f0f4f9 !important;
+  padding: 1rem 0.85rem !important;
+}}
+[class*="st-key-arya_full"] [class*="st-key-arya_left"] > div,
+[class*="st-key-arya_full"] [class*="st-key-arya_left"] > div > [data-testid="stVerticalBlock"] {{
+  height: 100% !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}}
+[class*="st-key-arya_full"] [class*="st-key-arya_left"] > div > [data-testid="stVerticalBlock"] > [class*="st-key-arya_left_scroll"] {{
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: auto !important;
+}}
+[class*="st-key-arya_full"] [class*="st-key-arya_left"] > div > [data-testid="stVerticalBlock"] > [class*="st-key-arya_left_foot"] {{
+  flex: 0 0 auto !important;
+  margin-top: auto !important;
+}}
+[class*="st-key-arya_left_scroll"] {{
+  max-height: 12rem !important;
+  overflow-x: hidden !important;
   overflow-y: auto !important;
-  padding: 1.25rem 1.5rem 5.5rem !important;
 }}
-[class*="st-key-arya_shell"] [data-testid="stHorizontalBlock"] > div:last-child > div,
-[class*="st-key-arya_shell"] [data-testid="stHorizontalBlock"] > div:last-child [data-testid="stVerticalBlock"] {{
-  background: #fff !important;
+[class*="st-key-arya_full"] [class*="st-key-arya_left_scroll"] {{
+  max-height: none !important;
   height: 100% !important;
 }}
-[class*="st-key-arya_chat_nav"] {{
-  height: 100%;
-  min-height: 100%;
-  padding: 1rem 0.75rem 1.25rem !important;
-  background: transparent;
-  box-sizing: border-box;
+[class*="st-key-arya_left_foot"] {{
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.45rem !important;
+  margin-top: 0.75rem !important;
+  padding-top: 0.75rem !important;
+  border-top: 1px solid #e2e8f0 !important;
 }}
-.rl-arya-side-title {{
-  margin: 0 0 0.65rem;
-  padding: 0 0.35rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #64748b;
+[class*="st-key-arya_left_foot"] .stButton > button,
+[class*="st-key-arya_left_foot"] button {{
+  width: 100% !important;
+  min-height: 2.35rem !important;
 }}
-[class*="st-key-aryachat_active_"][class*="-search"] [data-baseweb="input"],
-[class*="st-key-aryachat_active_"][class*="-search"] [data-testid="stTextInputRootElement"] {{
-  min-height: 2.25rem !important;
-  border: 1px solid var(--rl-line) !important;
-  border-radius: 0.75rem !important;
+/* Right pane — natural stack: title, thread, composer. No empty forced height. */
+[class*="st-key-arya_right"] {{
+  padding: 0.85rem 1.15rem 0.9rem !important;
+  box-sizing: border-box !important;
   background: #fff !important;
-  box-shadow: none !important;
 }}
-.rl-arya-group {{
-  margin: 0.85rem 0 0.25rem;
-  padding: 0 0.35rem;
-  font-size: 0.68rem;
-  font-weight: 650;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #94a3b8;
+[class*="st-key-arya_full"] [class*="st-key-arya_right"] {{
+  height: 100% !important;
+  padding: 0.85rem 1.5rem 1.1rem !important;
+  display: flex !important;
+  flex-direction: column !important;
 }}
-.rl-arya-group-list {{
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+[class*="st-key-arya_full"] [class*="st-key-arya_right"] > div,
+[class*="st-key-arya_full"] [class*="st-key-arya_right"] > div > [data-testid="stVerticalBlock"] {{
+  height: 100% !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
 }}
-.rl-arya-row {{
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.45rem 0.5rem;
-  border-radius: 0.5rem;
-  color: #475569;
+[class*="st-key-arya_full"] [class*="st-key-arya_right"] > div > [data-testid="stVerticalBlock"] > [class*="st-key-arya_thread"] {{
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: auto !important;
 }}
-.rl-arya-row:hover {{
-  background: #fff;
+[class*="st-key-arya_full"] [class*="st-key-arya_right"] > div > [data-testid="stVerticalBlock"] > [class*="st-key-arya_composer"] {{
+  flex: 0 0 auto !important;
+  margin-top: auto !important;
+}}
+.rl-arya-widget-title {{
+  margin: 0;
+  padding: 0.05rem 0 0.35rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   color: #0f172a;
-  box-shadow: 0 0 0 1px #e2e8f0;
-}}
-.rl-arya-row-active {{
-  background: #fff;
-  color: #0f172a;
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--youkti-primary) 35%, #e2e8f0);
-}}
-.rl-arya-row-title {{
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: inherit;
-  text-decoration: none;
-  font-size: 0.8125rem;
-  font-weight: 550;
-}}
-.rl-arya-row-del {{
-  flex: 0 0 auto;
-  width: 1.25rem;
-  color: #94a3b8;
-  text-decoration: none;
-  text-align: center;
-  font-size: 1rem;
-  line-height: 1;
-}}
-.rl-arya-row-del:hover {{
-  color: var(--rl-crit);
-}}
-.rl-arya-empty {{
-  margin: 1.5rem 0.5rem 0;
-  text-align: center;
-  font-size: 0.75rem;
-  color: #94a3b8;
 }}
 .rl-arya-hero {{
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100%;
-  min-height: 0;
-  padding: 1rem 1rem 4.5rem;
+  padding: 1.25rem 0.75rem 1rem;
+  text-align: center;
+  box-sizing: border-box;
 }}
-.rl-arya-hero h1 {{
+.rl-arya-hero-title {{
   margin: 0;
-  font-size: clamp(1.65rem, 3vw, 2.15rem);
+  font-size: clamp(1.1rem, 2vw, 1.35rem);
   font-weight: 650;
   letter-spacing: -0.03em;
-  text-align: center;
   color: #0f172a;
 }}
-/* Composer sits on the white chat pane, not over the grey rail. */
-.stApp:has([class*="st-key-arya_shell"]) [data-testid="stChatInput"],
-[data-testid="stApp"]:has([class*="st-key-arya_shell"]) [data-testid="stChatInput"] {{
-  position: relative;
-  z-index: 70;
-  max-width: calc(100% - 17rem - 3rem);
-  margin-left: calc(17rem + 1.5rem);
-  margin-right: 1.5rem;
+.rl-arya-hero-sub {{
+  margin: 0.45rem 0 0;
+  font-size: 0.9rem;
+  color: #64748b;
 }}
-[data-testid="stChatMessage"] {{
-  max-width: 52rem;
-  margin-left: auto;
-  margin-right: auto;
+[class*="st-key-arya_full"] .rl-arya-hero {{
+  min-height: 10rem;
+  height: 100%;
+  padding: 2rem 1rem;
+}}
+[class*="st-key-arya_thread"] {{
+  max-height: 16rem !important;
+  overflow-y: auto !important;
+  padding: 0.15rem 0.1rem 0.35rem !important;
+}}
+[class*="st-key-arya_full"] [class*="st-key-arya_thread"] {{
+  max-height: none !important;
+  height: 100% !important;
+}}
+[class*="st-key-arya_full"] [class*="st-key-arya_right"] > div > [data-testid="stVerticalBlock"] > div {{
+  width: min(48rem, 100%) !important;
+  max-width: 48rem !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}}
+[class*="st-key-arya_composer"] {{
+  padding-top: 0.35rem !important;
+}}
+[class*="st-key-arya_composer"] [data-testid="stForm"] {{
+  border: none !important;
+  padding: 0 !important;
+}}
+[class*="st-key-arya_composer"] [data-testid="stHorizontalBlock"] {{
+  align-items: center !important;
+  gap: 0.55rem !important;
+  height: auto !important;
+}}
+[class*="st-key-arya_composer"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child {{
+  flex: 1 1 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}}
+[class*="st-key-arya_composer"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child {{
+  flex: 0 0 2.75rem !important;
+  width: 2.75rem !important;
+  min-width: 2.75rem !important;
+  max-width: 2.75rem !important;
+}}
+[class*="st-key-arya_composer"] [data-testid="stFormSubmitButton"] button {{
+  width: 2.75rem !important;
+  min-width: 2.75rem !important;
+  height: 2.75rem !important;
+  border-radius: 999px !important;
+  font-size: 1.15rem !important;
+  font-weight: 700 !important;
+}}
+[class*="st-key-arya_composer"] [data-baseweb="input"],
+[class*="st-key-arya_composer"] [data-testid="stTextInputRootElement"] {{
+  min-height: 2.75rem !important;
+  border-radius: 1.35rem !important;
+  border: 1px solid #111827 !important;
+}}
+[class*="st-key-arya_composer"] [data-testid="InputInstructions"] {{
+  display: none !important;
+}}
+[class*="st-key-arya_dock"] [data-testid="stChatMessage"],
+[class*="st-key-arya_full"] [data-testid="stChatMessage"] {{
+  max-width: 100%;
 }}
 
 [class*="st-key-account_pagination"] {{

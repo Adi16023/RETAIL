@@ -795,7 +795,7 @@ def _execute_chat_tool(df: pd.DataFrame, pack_for, report_for, name: str, tool_i
         block = pack.get("_lifetime_value") or {"status": "insufficient_history", "reason": "not computed"}
         # The chart series and the fit parameters are for the page; the chat
         # quotes figures, so they only cost tokens here.
-        return {k: v for k, v in block.items() if k not in ("cumulative_by_month", "book_fit")}, [account_id]
+        return {k: v for k, v in block.items() if k not in ("value_paths", "book_fit")}, [account_id]
     if name == "get_priced_options":
         impact = (report_for(account_id) or {}).get("financial_impact")
         options = price_options(pack, impact)

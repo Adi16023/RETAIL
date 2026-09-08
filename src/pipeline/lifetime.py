@@ -222,6 +222,63 @@ def _value_breakdown(acc_df: pd.DataFrame, basis: str, by: str, active_months: f
     return rows[:limit] if limit else rows
 
 
+def _monthly_value(acc_df: pd.DataFrame, basis: str) -> pd.Series:
+    """Value per calendar month over the account's whole history, gap months
+    as zero — the series the paths chart accumulates."""
+    d = acc_df.copy()
+    d["month"] = d["date"].dt.to_period("M")
+    months = pd.period_range(d["month"].min(), d["month"].max(), freq="M")
+    return d.groupby("month")[basis].sum().reindex(months, fill_value=0.0).astype(float)
+
+
+def _value_paths(acc_df: pd.DataFrame, value: dict, horizon: int) -> tuple[list[dict], str | None, int]:
+    """Potential versus reality, cumulative, over the history and `horizon`
+    months beyond it. Returns (rows, deviation_month, lost_since_deviation).
+
+    Reality is what the account actually earned, month by month, then
+    carried on at the recent rate. Potential is the same actual money up to
+    the DEVIATION MONTH — the month after the last one in which the account
+    still earned at least its baseline value per month — and the baseline
+    rate from there on. So the two lines coincide while the account was
+    itself, part company the month it stopped being, and the gap at today is
+    what the slide has already cost; over the horizon it widens by exactly
+    the value at risk. A projection from today alone (the first version)
+    drew two straight lines opening from month 1, which read as "fine today,
+    worse later" on accounts whose decline was already a year old.
+
+    The break is defined against the baseline average rather than found by
+    a change-point search because the leaks here take three shapes — a step
+    (ACC-106), a bend (ACC-101) and a slide from the first month (ACC-107)
+    — and the largest-drop split landed a year late on the bend. "The last
+    month they earned their old average" is one rule that dates all three
+    and is a sentence a manager can check against the monthly table.
+    """
+    monthly = _monthly_value(acc_df, value["basis"])
+    baseline, recent = value["baseline"], value["recent"]
+    above = [i for i, v in enumerate(monthly.values) if v >= baseline]
+    # No deviation when the account is still earning its average in its
+    # final month (healthy, or trading up): the lines split only at today.
+    dev_index = above[-1] + 1 if above and above[-1] + 1 < len(monthly) else None
+
+    rows, actual, potential = [], 0.0, 0.0
+    last = len(monthly) - 1
+    for i, (period, v) in enumerate(monthly.items()):
+        actual += v
+        potential += baseline if dev_index is not None and i >= dev_index else v
+        rows.append({"month": str(period), "offset": i - last, "phase": "history",
+                     "potential": round(potential), "reality": round(actual)})
+    # From the rounded rows, so the caption's figure is exactly the gap the
+    # chart draws at today.
+    lost = rows[-1]["potential"] - rows[-1]["reality"]
+    today = monthly.index[-1]
+    for k in range(1, horizon + 1):
+        rows.append({"month": str(today + k), "offset": k, "phase": "projection",
+                     "potential": round(potential + k * baseline),
+                     "reality": round(actual + k * recent)})
+    deviation_month = str(monthly.index[dev_index]) if dev_index is not None else None
+    return rows, deviation_month, max(0, lost)
+
+
 def expected_active_months(params: dict, x: float, t_x: float, T: float, horizon: int) -> float:
     """Months of continued buying expected over the horizon: the expected
     orders divided by the account's long-run order rate, capped at the
@@ -304,14 +361,8 @@ def account_lifetime_value(df: pd.DataFrame, account_id: str,
             "value_at_risk": max(0, baseline_value - current_value),
         }
 
-    # The two paths month by month over the longest horizon, for the chart:
-    # cumulative value on the baseline and on the current path.
     longest = max(HORIZONS_MONTHS)
-    cumulative = [{
-        "month": month,
-        "baseline": round(month * value["baseline"]),
-        "current": round(month * value["recent"]),
-    } for month in range(1, longest + 1)]
+    paths, deviation_month, lost_since_deviation = _value_paths(acc_df, value, longest)
 
     breakdown = {
         "horizon_months": longest,
@@ -325,7 +376,9 @@ def account_lifetime_value(df: pd.DataFrame, account_id: str,
     }
 
     return {
-        "cumulative_by_month": cumulative,
+        "value_paths": paths,
+        "deviation_month": deviation_month,
+        "lost_since_deviation": lost_since_deviation,
         "breakdown": breakdown,
         "status": "scored",
         "value_basis": value["basis"],

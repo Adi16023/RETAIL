@@ -62,21 +62,54 @@ def _pct(value) -> str:
     return "—" if value is None else f"{value * 100:.0f}%"
 
 
+POTENTIAL, REALITY = "Potential", "Reality"
+
+
 def _paths_chart(block: dict, colors: dict) -> alt.Chart:
+    """Potential versus reality, cumulative, history then projection.
+
+    Both lines are the account's real money until the deviation month, so
+    they lie on top of each other; potential then keeps the baseline rate
+    (blue) while reality follows what happened and, past today, the recent
+    rate (red). History is solid, projection dashed, with a rule at today
+    and one at the month the paths part."""
     rows = []
-    for point in block["cumulative_by_month"]:
-        rows.append({"month": point["month"], "path": "Baseline path", "value": point["baseline"]})
-        rows.append({"month": point["month"], "path": "Current path", "value": point["current"]})
+    for point in block["value_paths"]:
+        for path, key in ((POTENTIAL, "potential"), (REALITY, "reality")):
+            rows.append({"month": f"{point['month']}-01", "path": path, "phase": point["phase"],
+                         "value": point[key]})
+            # Today belongs to both segments, so the dashed projection starts
+            # where the solid history ends instead of a month later.
+            if point["offset"] == 0:
+                rows.append({**rows[-1], "phase": "projection"})
     frame = pd.DataFrame(rows)
-    scale = alt.Scale(domain=["Baseline path", "Current path"], range=[colors["series_1"], colors["critical"]])
+    frame["month"] = pd.to_datetime(frame["month"])
+    scale = alt.Scale(domain=[POTENTIAL, REALITY], range=[colors["series_1"], colors["critical"]])
     base = alt.Chart(frame).encode(
-        x=alt.X("month:Q", title="Months from today", axis=alt.Axis(tickMinStep=3)),
+        x=alt.X("month:T", title=None, axis=alt.Axis(format="%b %Y", labelAngle=0, tickCount="year")),
         y=alt.Y("value:Q", title="Cumulative value (₹)", axis=alt.Axis(format="~s")),
         color=alt.Color("path:N", scale=scale, legend=alt.Legend(title=None, orient="top-left")),
-        tooltip=[alt.Tooltip("month:Q", title="Month"), alt.Tooltip("path:N", title="Path"),
+        strokeDash=alt.StrokeDash(
+            "phase:N", scale=alt.Scale(domain=["history", "projection"], range=[[1, 0], [6, 4]]),
+            legend=None,
+        ),
+        tooltip=[alt.Tooltip("month:T", title="Month", format="%b %Y"), alt.Tooltip("path:N", title="Path"),
+                 alt.Tooltip("phase:N", title="Phase"),
                  alt.Tooltip("value:Q", title="Cumulative ₹", format=",.0f")],
     )
-    return (base.mark_line(strokeWidth=2) + base.mark_point(size=30, filled=True)).properties(height=260)
+    lines = base.mark_line(strokeWidth=2)
+
+    history = [p for p in block["value_paths"] if p["phase"] == "history"]
+    marks = [{"month": f"{history[-1]['month']}-01", "label": "Today"}]
+    if block.get("deviation_month"):
+        marks.append({"month": f"{block['deviation_month']}-01", "label": "Paths part"})
+    marks_frame = pd.DataFrame(marks)
+    marks_frame["month"] = pd.to_datetime(marks_frame["month"])
+    rules = alt.Chart(marks_frame).mark_rule(color=colors["muted"], strokeDash=[2, 2]).encode(x="month:T")
+    labels = alt.Chart(marks_frame).mark_text(
+        align="left", dx=4, dy=-4, baseline="top", color=colors["muted"], fontSize=11,
+    ).encode(x="month:T", y=alt.value(0), text="label:N")
+    return (lines + rules + labels).properties(height=280)
 
 
 def render_lifetime_account(pack: dict) -> None:
@@ -118,8 +151,23 @@ def render_lifetime_account(pack: dict) -> None:
     ])
 
     st.altair_chart(_paths_chart(block, colors), width="stretch")
+    deviation = block.get("deviation_month")
+    lost = block.get("lost_since_deviation") or 0
+    if deviation and lost:
+        when = pd.Period(deviation).strftime("%B %Y")
+        story = (
+            f"The lines part in {when}, the month after the account last earned its old average. "
+            f"Since then it has earned {_money(lost)} less than it would have — the gap at today — "
+            f"and on its current path the gap widens by another {_money(risk)} over the next {HORIZON_SHOWN} months."
+        )
+    else:
+        story = (
+            "The account is still earning at least its old average, so potential and reality are the "
+            "same money all the way to today and only the projections differ."
+        )
     st.caption(
-        "Cumulative value month by month on each path. The space between the lines is the value at risk. "
+        f"Blue is what the account would have earned at its baseline rate; red is what it actually earned "
+        f"(solid), then where it is heading at today's rate (dashed). {story} "
         "A projection of the current path, not a forecast of what the customer will decide."
     )
 

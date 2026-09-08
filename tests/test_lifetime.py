@@ -128,14 +128,44 @@ def test_block_rides_on_the_pack_off_the_prompt_and_the_chat_tool_returns_it(df)
     assert touched == ["ACC-101"] and block["horizons_months"]["24"]["cltv_baseline"] > 0
 
 
-def test_cumulative_paths_grow_monotonically_and_end_at_the_24_month_figures(df, fitted):
+def test_value_paths_coincide_until_the_deviation_month_then_widen_by_the_value_at_risk(df, fitted):
+    """Potential and reality are the same money while the account was
+    itself; they part the month after it last earned its baseline average
+    (ACC-101: October 2025, when margin fell from ~₹96k to ₹79k a month and
+    never came back); the gap at today is what has been lost so far, and
+    over the next 24 months it grows by exactly the value at risk."""
     block = account_lifetime_value(df, "ACC-101", fitted)
-    series = block["cumulative_by_month"]
-    assert [p["month"] for p in series] == list(range(1, 25))
-    for earlier, later in zip(series, series[1:]):
-        assert later["baseline"] >= earlier["baseline"] and later["current"] >= earlier["current"]
-    assert series[-1]["baseline"] == block["horizons_months"]["24"]["cltv_baseline"]
-    assert series[-1]["current"] == block["horizons_months"]["24"]["cltv_current"]
+    rows = block["value_paths"]
+    assert block["deviation_month"] == "2025-10"
+    history = [r for r in rows if r["phase"] == "history"]
+    projection = [r for r in rows if r["phase"] == "projection"]
+    assert [r["offset"] for r in projection] == list(range(1, 25))
+    assert history[0]["month"] == "2024-09" and history[-1]["offset"] == 0
+    before = [r for r in history if r["month"] < "2025-10"]
+    assert before and all(r["potential"] == r["reality"] for r in before)
+    after = [r for r in history if r["month"] >= "2025-10"]
+    assert all(r["potential"] > r["reality"] for r in after)
+    today = history[-1]
+    assert today["potential"] - today["reality"] == block["lost_since_deviation"] > 0
+    end = projection[-1]
+    h24 = block["horizons_months"]["24"]
+    assert abs((end["potential"] - today["potential"]) - h24["cltv_baseline"]) <= 1
+    assert abs((end["reality"] - today["reality"]) - h24["cltv_current"]) <= 1
+    assert abs((end["potential"] - end["reality"]) - (block["lost_since_deviation"] + h24["value_at_risk"])) <= 2
+    # Reality is the account's real money: at today it is the sum of every margin line.
+    actual = df[df["account_id"] == "ACC-101"]["margin"].sum()
+    assert abs(today["reality"] - actual) <= 1
+
+
+def test_value_paths_have_no_deviation_on_an_account_still_earning_its_average(df, fitted):
+    """ACC-111 trades up: its last month is at or above its baseline, so
+    potential and reality are identical through history and split only at
+    today, with reality above."""
+    block = account_lifetime_value(df, "ACC-111", fitted)
+    assert block["deviation_month"] is None and block["lost_since_deviation"] == 0
+    history = [r for r in block["value_paths"] if r["phase"] == "history"]
+    assert all(r["potential"] == r["reality"] for r in history)
+    assert block["value_paths"][-1]["reality"] >= block["value_paths"][-1]["potential"]
 
 
 def test_book_position_ranks_by_value_at_risk(df, fitted):

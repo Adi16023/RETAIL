@@ -1,0 +1,37 @@
+{
+  "action_type": "mix_recovery",
+  "recommended_option": "win back 75% of the lost premium mix",
+  "headline": "Win back three-quarters of the lost premium lines to lift margin rate from 19.9% back to 29.1%.",
+  "rationale": "High-tier share collapsed from 66.2% to 22.5% and margin rate fell from 32.1% to 19.9%, driven by specific premium lines shrinking or vanishing. Winning back 75% of that lost mix restores the account to healthy without needing to chase the hardest-to-recover fully disappeared lines.",
+  "why_not_more_aggressive": "100% recovery only adds a further 3.0pp of margin rate beyond the healthy threshold already met at 75%, for lines that fully disappeared and may be hardest to reclaim.",
+  "why_not_less_aggressive": "50% and 33% recovery leave the account short of healthy by 3.1 and 5.2 points respectively \u2014 the leak stays structurally unresolved.",
+  "expected_result": "Recovering 75% of the lost premium mix restores \u20b926,051 in margin per month (\u20b9312,607 over 12 months), lifting the margin rate from 19.9% to 29.1% and returning the account to healthy.",
+  "what_to_do": [
+    "Schedule a mix review with the buyer, led by Priya Nair, focused on the Power Tools decline (revenue down 68.8%, from Rs 88,810 to Rs 27,661/month).",
+    "Rebuild the proposal around PT-Cordless Drill 18V (was Rs 45,459.50/month, now Rs 5,608.54) and PT-Rotary Hammer SDS (was Rs 29,419.66/month, now Rs 12,077.82).",
+    "Raise the two lines that stopped entirely: DG-Thermal Imager (was Rs 28,079/month) and SB-Safety Glasses 10pk (was Rs 8,209/month), and ask why they were dropped.",
+    "Rebuild the Precision Hardware line with PH-Micrometer Set (was Rs 16,307.16, now Rs 7,068.24) and PH-Bearing Puller Kit (was Rs 8,127.01, now Rs 920.49).",
+    "Set a 6-month checkpoint on margin rate and high-tier revenue share to confirm the recovery is holding."
+  ],
+  "talking_points": [
+    "Your premium mix fell from 66.2% to 22.5% of revenue since December 2025.",
+    "Margin rate has sat below normal range for 8 months, down from 32.1% to 19.9%.",
+    "Power Tools revenue alone dropped 68.8%, from Rs 88,810 to Rs 27,661 a month."
+  ],
+  "check_before_acting": [
+    "Whether DG-Thermal Imager and SB-Safety Glasses 10pk were discontinued by the customer or moved to a competitor.",
+    "Whether the Power Tools and Diagnostic Equipment declines reflect a competitive loss or an internal supply gap.",
+    "Whether any contract terms already lock the customer into the lower-tier substitutes now being bought."
+  ],
+  "restores_account_to_healthy": true,
+  "what_is_left_over": "Nothing \u2014 this restores the account.",
+  "downside_if_wrong": "If the disappeared lines cannot be won back, margin recovery falls short of Rs 26,051/month and the account stays below healthy.",
+  "owner": "Priya Nair, Account Manager",
+  "timing": "Start within 30 days, before next quarterly review",
+  "how_we_will_know_it_worked": [
+    "Margin rate at 6 months should show recovery toward 29.1%, up from 19.9%.",
+    "High-tier revenue share should climb back from 22.5% toward pre-decline levels.",
+    "PT-Cordless Drill 18V and DG-Insulation Tester monthly revenue should show renewed volume."
+  ],
+  "review_in_months": 6
+}

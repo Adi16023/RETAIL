@@ -719,10 +719,16 @@ class DecisionError(Exception):
 # ceiling against a rate limit, not the tokens actually used. At 6000 this
 # call billed ~9,155 tokens against Groq's 8,000-per-minute free tier and so
 # could never succeed there, however long the caller waited — a failure that
-# looks like congestion and is really a request that does not fit. 4000
-# leaves roughly four times the longest answer observed and keeps the whole
-# request inside that ceiling.
-OUTPUT_TOKENS = 4000
+# looks like congestion and is really a request that does not fit.
+#
+# 4000 held until the app moved to claude-sonnet-5, which thinks before it
+# answers: on the account with the most moving parts (ACC-112 — eight
+# declined lines across seven categories, orders fragmenting) it spent 3,711
+# tokens thinking and the tool call was cut off mid-JSON, twice. The visible
+# answer is ~900 tokens, so 8000 leaves room for a long think and a full
+# answer. The Groq path is no longer used by the app (validate_answer_key.py
+# and the tests only), so its free-tier ceiling no longer sets this number.
+OUTPUT_TOKENS = 8000
 
 
 def recommend(client, decision_input: dict, model: str = DEFAULT_MODEL) -> dict:
@@ -748,4 +754,36 @@ def recommend(client, decision_input: dict, model: str = DEFAULT_MODEL) -> dict:
         raise DecisionError(
             f"Model stopped (stop_reason={response.stop_reason!r}) without calling submit_decision."
         )
+
+    # A response cut off at the token ceiling still carries a tool_use block —
+    # the SDK parses whatever JSON had arrived — with the tail of the fields
+    # missing. Accepting it would cache a recommendation with no steps, no
+    # owner and no timing, which is exactly what happened on ACC-112. Refuse
+    # it here so the caller sees an error rather than saving a half answer.
+    if response.stop_reason == "max_tokens":
+        raise DecisionError(
+            "Model ran out of room mid-answer (stop_reason='max_tokens'); "
+            "the recommendation is incomplete and was not accepted."
+        )
+    schema = SUBMIT_DECISION_TOOL["input_schema"]
+    missing = [field for field in schema["required"] if field not in submit_block.input]
+    if missing:
+        raise DecisionError(
+            f"submit_decision is missing required fields: {', '.join(missing)}."
+        )
+    # The steps once arrived as a single garbled string instead of a list;
+    # the page iterates the field, so it would have printed one character
+    # per step. A list field that is not a list of strings is a bad answer.
+    malformed = [
+        field for field, spec in schema["properties"].items()
+        if spec.get("type") == "array"
+        and not (isinstance(submit_block.input.get(field), list)
+                 and all(isinstance(item, str) for item in submit_block.input[field]))
+    ]
+    if malformed:
+        raise DecisionError(
+            f"submit_decision fields must be lists of strings: {', '.join(malformed)}."
+        )
+    if not submit_block.input["what_to_do"]:
+        raise DecisionError("submit_decision has no steps in what_to_do.")
     return submit_block.input

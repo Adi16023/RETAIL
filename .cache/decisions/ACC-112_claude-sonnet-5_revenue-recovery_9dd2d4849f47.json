@@ -1,0 +1,37 @@
+{
+  "action_type": "relationship_review",
+  "recommended_option": "rebuild 50% of the lost monthly spend",
+  "headline": "Riverside Retail's spend is down across nearly every category \u2014 hold a full account review, not a single-lever fix.",
+  "rationale": "Revenue is down 18.9% first half vs second half (trend -1.83%/month) with two lines gone entirely and six more declining across six different categories \u2014 Power Tools, Electrical Accessories, Safety Basics, Precision Hardware, Diagnostic Equipment, Consumables. Orders are also fragmenting: average order value down 43.4%. This is whole-book decline, not one product or one discount.",
+  "why_not_more_aggressive": "100% rebuild assumes recovering all \u20b928,951/month lost, before anyone has established why the customer is fragmenting orders \u2014 premature commitment.",
+  "why_not_less_aggressive": "33% only recovers \u20b99,554/month and leaves \u20b919,397/month short \u2014 too small a target given decline spans six categories.",
+  "expected_result": "Rebuilding 50% of lost spend recovers \u20b914,476/month in revenue (\u20b94,225/month margin, \u20b950,706 over 12 months), but leaves the account \u20b914,475/month short of the healthy threshold.",
+  "what_to_do": [
+    "Schedule a business review with Riverside Retail's buyer covering the decline across Power Tools, Electrical Accessories, Safety Basics, Precision Hardware, Diagnostic Equipment, Consumables and Cleaning & Maintenance.",
+    "Raise the two lines that stopped entirely: PT-Cordless Drill 18V (was \u20b924,824/month) and CN-Cutting Blade 10pk (was \u20b94,997/month), and ask directly why.",
+    "Ask about order fragmentation directly: average order value down 43.4% while orders per month rose from 1.17 to 1.67 \u2014 check if part of the basket now goes elsewhere.",
+    "Build a recovery plan targeting \u20b914,476/month of the \u20b928,951/month lost, prioritising EA-Cable Gland Set (was \u20b916,368/month, now \u20b92,429/month) and PH-Precision Torque Wrench (was \u20b98,856/month, now \u20b93,493/month).",
+    "Set a follow-up review in 3 months to check whether the targeted \u20b914,476/month has materialised."
+  ],
+  "talking_points": [
+    "Your monthly spend with us has fallen from \u20b9175,870 to \u20b9146,919 \u2014 what's changed on your side?",
+    "You used to order the Cordless Drill 18V and Cutting Blade 10pk every month \u2014 neither has been ordered since March 2026.",
+    "Your order sizes are down 43.4% even though you're ordering more often \u2014 is part of the basket going elsewhere?"
+  ],
+  "check_before_acting": [
+    "Confirm whether PT-Cordless Drill 18V and CN-Cutting Blade 10pk were discontinued by Riverside Retail or sourced from another supplier.",
+    "Establish whether a competitor or an internal budget change is behind the order fragmentation.",
+    "Verify there is no contract or service issue driving the pattern before proposing commercial terms."
+  ],
+  "restores_account_to_healthy": false,
+  "what_is_left_over": "\u20b914,475/month remains short of the \u20b928,951/month lost. Closing it needs recovering more of the declined lines, especially EA-Cable Gland Set (was \u20b916,368/month) and PH-Precision Torque Wrench (was \u20b98,856/month).",
+  "downside_if_wrong": "If the cause is competitive displacement rather than something fixable in conversation, the \u20b928,951/month lost per month may not return regardless.",
+  "owner": "Fatima Sheikh, Account Manager",
+  "timing": "Within 4 weeks, before next quarter's ordering cycle",
+  "how_we_will_know_it_worked": [
+    "Monthly spend moves from \u20b9146,919 toward the \u20b9161,395 target within 3 months.",
+    "PT-Cordless Drill 18V or CN-Cutting Blade 10pk reappear in monthly orders.",
+    "Average order value recovers from its current fragmented, -43.4% level."
+  ],
+  "review_in_months": 3
+}

@@ -1,0 +1,37 @@
+{
+  "action_type": "consolidation",
+  "recommended_option": "Re-engage Belmont now to understand the fragmenting order pattern and the stopped Digital Multimeter Pro line, and work to consolidate orders back into fewer, larger baskets",
+  "headline": "Belmont's orders are splitting into more, smaller baskets and one product line has gone to zero \u2014 act while it's still cheap.",
+  "rationale": "Orders per month rose from 2.11 to 3.67 while lines per order fell from 3.79 to 2.18 and average order value dropped 47.3% \u2014 the classic sign of a customer starting to buy part of its basket elsewhere. DG-Digital Multimeter Pro (was Rs 11,896.85/month) has stopped entirely, and six lines together have fallen away by Rs 41,271.23/month.",
+  "why_not_more_aggressive": "The account's overall revenue-at-risk is recorded as zero with priority None \u2014 a full win-back or price renegotiation is premature and would strain the relationship unnecessarily.",
+  "why_not_less_aggressive": "Doing nothing wastes the cheapest moment to act \u2014 fragmentation and a stopped line can sit unnoticed before they turn into confirmed revenue loss.",
+  "expected_result": "If the buyer conversation and consolidation succeed, lines per order move back toward the prior 3.79 and the Rs 41,271.23/month currently spread across six declining or stopped lines stops eroding further, even though today's system-recorded revenue-at-risk is zero.",
+  "what_to_do": [
+    "Call the Belmont buyer to ask directly why DG-Digital Multimeter Pro (was Rs 11,896.85/month, now zero) stopped.",
+    "Review PT-Rotary Hammer SDS (down from Rs 20,183.50 to Rs 9,669.33/month) and PH-Precision Torque Wrench (down from Rs 9,978.66 to Rs 3,463.95/month) for signs of split sourcing.",
+    "Propose a consolidated standing order to rebuild lines-per-order from the current 2.18 back toward the prior 3.79.",
+    "Confirm Sandeep Rao as the single ongoing point of contact for Belmont following the handover from Fatima Sheikh.",
+    "Track average order value and order frequency monthly for the next quarter to catch further fragmentation early."
+  ],
+  "talking_points": [
+    "Your orders per month rose from 2.11 to 3.67 while items per order fell from 3.79 to 2.18.",
+    "Digital Multimeter Pro used to be Rs 11,896.85 a month and has stopped completely.",
+    "Rotary Hammer SDS is down from Rs 20,183.50 to Rs 9,669.33 a month."
+  ],
+  "check_before_acting": [
+    "Whether Digital Multimeter Pro was discontinued by Belmont themselves or is being sourced elsewhere.",
+    "Whether the account manager change from Fatima Sheikh to Sandeep Rao coincided with the fragmentation.",
+    "Whether Belmont has an alternate supplier for power tools and diagnostic equipment."
+  ],
+  "restores_account_to_healthy": false,
+  "what_is_left_over": "The Rs 41,271.23/month across six declining or stopped lines, including Digital Multimeter Pro at zero, remains unresolved until the buyer conversation and consolidation take effect.",
+  "downside_if_wrong": "If the fragmentation reflects normal seasonal ordering rather than share loss, the outreach adds friction with no revenue benefit.",
+  "owner": "Sandeep Rao, current account manager",
+  "timing": "Within the next 4 weeks",
+  "how_we_will_know_it_worked": [
+    "Lines per order rise back toward 3.79 by the next quarterly review.",
+    "Average order value recovers from its current -47.3% dip by next review.",
+    "Digital Multimeter Pro (was Rs 11,896.85/month) resumes ordering or is confirmed discontinued by Belmont."
+  ],
+  "review_in_months": 3
+}

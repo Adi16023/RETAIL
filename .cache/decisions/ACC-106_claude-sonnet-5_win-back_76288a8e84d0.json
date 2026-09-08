@@ -1,0 +1,37 @@
+{
+  "action_type": "win_back",
+  "recommended_option": "win back 75% of Diagnostic Equipment",
+  "headline": "Rebuild Diagnostic Equipment supply \u2014 target 75% of the \u20b967,794/month lost since October 2025.",
+  "rationale": "Diagnostic Equipment was 20.4% of baseline revenue and has been at zero for 10 months \u2014 a clean, nameable loss, not a general decline. \u20b9677,943 has already gone. The 31.6% price-concession tolerance makes a strong win-back ask commercially safe.",
+  "why_not_more_aggressive": "Full 100% win-back assumes the whole category returns in one move after 10 months at zero \u2014 a phased target is more credible.",
+  "why_not_less_aggressive": "50% or 33% win-back leaves \u20b931,893 or \u20b943,418/month unrecovered \u2014 too little given \u20b9677,943 already lost.",
+  "expected_result": "Winning back 75% of Diagnostic Equipment recovers \u20b950,846/month in revenue and \u20b916,052/month in margin, but still leaves the account \u20b914,944/month short of full health.",
+  "what_to_do": [
+    "Call the buyer and open with the stopped line: Diagnostic Equipment, was \u20b967,794/month, zero since October 2025.",
+    "Name the four discontinued SKUs by figure: DG-Digital Multimeter Pro (was \u20b923,651/month), DG-Thermal Imager (was \u20b920,009/month), DG-Insulation Tester (was \u20b910,095/month), PH-Precision Torque Wrench (was \u20b911,473/month).",
+    "Offer a phased reinstatement targeting 75% of prior volume (\u20b950,846/month) with a price concession of up to 31.6%.",
+    "Get sign-off from Rohit Sharma's manager on the concession ceiling before the call.",
+    "Track monthly recovered revenue against the \u20b950,846/month target and margin against \u20b916,052/month."
+  ],
+  "talking_points": [
+    "Diagnostic Equipment was 20.4% of your baseline, \u20b967,794/month, before it stopped in October 2025.",
+    "That's \u20b9677,943 in lost value over 10 months at zero.",
+    "We can support up to a 31.6% price concession to get this line moving again."
+  ],
+  "check_before_acting": [
+    "Confirm whether the customer discontinued diagnostic equipment purchasing internally or moved to another supplier.",
+    "Confirm any contract or tender cycle governing this category before proposing new terms.",
+    "Confirm current relationship status and last contact point with the buyer for this category."
+  ],
+  "restores_account_to_healthy": false,
+  "what_is_left_over": "A shortfall of \u20b914,944/month remains even at 75% win-back; closing it needs either the remaining 25% of Diagnostic Equipment or addressing the separate declines in Power Tools, Precision Hardware and Fasteners & Fittings.",
+  "downside_if_wrong": "If the customer has structurally moved away, the concession is offered without volume returning, eroding margin for nothing.",
+  "owner": "Rohit Sharma, Account Manager",
+  "timing": "Within the next 4-6 weeks",
+  "how_we_will_know_it_worked": [
+    "Diagnostic Equipment revenue moves from \u20b90 toward \u20b950,846/month \u2014 check at 3 months.",
+    "Margin recovers toward \u20b916,052/month \u2014 check at 3 months.",
+    "Value lost so far stops growing past \u20b9677,943 \u2014 check monthly."
+  ],
+  "review_in_months": 3
+}

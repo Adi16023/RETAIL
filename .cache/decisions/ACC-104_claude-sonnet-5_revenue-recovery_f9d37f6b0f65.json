@@ -1,0 +1,37 @@
+{
+  "action_type": "relationship_review",
+  "recommended_option": "rebuild 50% of the lost monthly spend",
+  "headline": "Sunset Hardware's spend is falling across seven categories at once \u2014 this needs a relationship conversation, not a product fix.",
+  "rationale": "Eight lines across seven different categories all declined together (Fasteners, Power Tools, Consumables, Electrical, Precision Hardware, Safety, Diagnostic) \u2014 no single category explains it. Monthly spend has fallen from \u20b9173,763 to \u20b9135,167, a broad-based \u20b938,597/month drop that a discount or mix fix won't touch.",
+  "why_not_more_aggressive": "Rebuilding 100% (\u20b938,597/month, restoring health) assumes a full win-back is achievable from a conversation alone; nothing in the data supports that scale of reversal.",
+  "why_not_less_aggressive": "Rebuilding only 33% (\u20b912,737/month) leaves \u20b925,860/month still short and undersells an account with 22.8 months of history and no manager disruption.",
+  "expected_result": "Recovering 50% of lost spend brings back \u20b919,298/month in revenue and \u20b95,726/month in margin (\u20b968,710 over 12 months), but still leaves the account \u20b919,299/month short of healthy.",
+  "what_to_do": [
+    "Book a face-to-face review with Sunset Hardware's buyer to discuss the broad pullback, not a single product.",
+    "Walk through the specific declines: FF-Stainless Fastener Pack down from Rs 15,378.78 to Rs 2,441.10/month, PT-Angle Grinder 900W down from Rs 14,302.71 to Rs 4,852.53/month.",
+    "Ask directly why CN-Abrasive Discs 25pk fell from Rs 13,682.17 to Rs 2,795.02/month and EA-MCB 32A from Rs 9,417.74 to Rs 5,228.47/month.",
+    "Set a joint target to rebuild spend toward Rs 19,298/month recovered revenue over the next two quarters.",
+    "Escalate to a senior sponsor call if the buyer cannot explain the across-the-board decline."
+  ],
+  "talking_points": [
+    "Your monthly spend with us has dropped from Rs 173,763 to Rs 135,167 across seven categories, not one.",
+    "Fastener Pack orders alone fell from Rs 15,378.78 to Rs 2,441.10 a month.",
+    "We want to understand what changed before this becomes permanent."
+  ],
+  "check_before_acting": [
+    "Whether the buyer or procurement contact at Sunset Hardware has changed",
+    "Whether Sunset Hardware has slowed as a business or shifted sourcing to another supplier",
+    "Whether any of these lines were discontinued by the customer themselves rather than lost to a competitor"
+  ],
+  "restores_account_to_healthy": false,
+  "what_is_left_over": "Even at 50% recovery, Rs 19,299/month of the decline remains unaddressed; only full rebuild (Rs 38,597/month) restores the account to healthy.",
+  "downside_if_wrong": "If the cause is a lost competitive bid rather than relationship drift, a review conversation alone will not recover any of the Rs 38,597/month.",
+  "owner": "Fatima Sheikh, Account Manager",
+  "timing": "Within the next 4 weeks",
+  "how_we_will_know_it_worked": [
+    "Monthly revenue rises from Rs 135,167 toward Rs 154,465 (50% rebuild) \u2014 check at 3 months",
+    "Margin recovers toward Rs 5,726/month \u2014 check at 6 months",
+    "Fastener Pack and Angle Grinder order volumes show renewed movement \u2014 check at next quarterly review"
+  ],
+  "review_in_months": 6
+}

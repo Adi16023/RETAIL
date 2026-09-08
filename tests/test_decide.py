@@ -442,6 +442,42 @@ def test_wrong_tool_raises(report, options):
         recommend(client, build_decision_input(report, options), model="test-model")
 
 
+def test_answer_cut_off_at_the_token_ceiling_is_refused(report, options):
+    """A response that hit max_tokens still carries a tool_use block with the
+    fields that had arrived so far. On ACC-112 the model thought for most of
+    its budget and the saved recommendation had no steps, owner or timing.
+    A half answer must be an error, never a cached decision."""
+    partial = {k: v for k, v in a_decision().items()
+               if k in ("action_type", "recommended_option", "headline", "rationale")}
+    client = ScriptedClient([
+        message([tool_use_block("submit_decision", partial)], stop_reason="max_tokens")
+    ])
+    with pytest.raises(DecisionError, match="max_tokens"):
+        recommend(client, build_decision_input(report, options), model="test-model")
+
+
+def test_submission_missing_required_fields_is_refused(report, options):
+    """Same guard from the other side: a complete stop with fields absent."""
+    incomplete = a_decision()
+    del incomplete["what_to_do"], incomplete["owner"]
+    client = ScriptedClient([
+        message([tool_use_block("submit_decision", incomplete)], stop_reason="tool_use")
+    ])
+    with pytest.raises(DecisionError, match="what_to_do, owner"):
+        recommend(client, build_decision_input(report, options), model="test-model")
+
+
+def test_steps_that_are_not_a_list_are_refused(report, options):
+    """Seen live on ACC-112: what_to_do came back as one garbled string. The
+    page iterates it, so that would render one character per step."""
+    garbled = a_decision(what_to_do="Call the buyer and open with the stopped line.")
+    client = ScriptedClient([
+        message([tool_use_block("submit_decision", garbled)], stop_reason="tool_use")
+    ])
+    with pytest.raises(DecisionError, match="lists of strings: what_to_do"):
+        recommend(client, build_decision_input(report, options), model="test-model")
+
+
 # --- the output contract ---------------------------------------------------
 
 def test_no_action_and_gather_data_are_available_verdicts():

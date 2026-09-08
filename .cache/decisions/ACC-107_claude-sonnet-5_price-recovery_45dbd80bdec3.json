@@ -1,0 +1,37 @@
+{
+  "action_type": "price_recovery",
+  "recommended_option": "negotiate the discount back to 15.4%",
+  "headline": "Reset Ashford's discount from 23.5% to 15.4% to recover \u20b921,794/month margin and restore the account to healthy.",
+  "rationale": "Discount crept from 12.7% to 23.5% and margin rate fell from 22.6% to 11.5% with no offsetting volume gain \u2014 a structural pricing leak, not a one-off. The 15.4% option is the smallest reduction that fully restores the account to healthy (short_of_healthy_by_pp 0.0).",
+  "why_not_more_aggressive": "Pushing to the original 12.7% only adds \u20b97,256 more per month over the 15.4% option but the 15.4% option already restores the account to healthy \u2014 no extra benefit for the harder ask.",
+  "why_not_less_aggressive": "The 19.9% and 18.1% options recover \u20b99,576 and \u20b914,512 respectively but both leave the account short of healthy by 4.2 and 2.3 points.",
+  "expected_result": "Bringing the discount down to 15.4% recovers \u20b921,794 in margin per month (\u20b9261,533 over 12 months), lifts the margin rate to 19.9%, and returns the account to healthy.",
+  "what_to_do": [
+    "Pull Ashford's last 3 invoices and show the discount trail moving from 12.7% to 23.5% since October 2025.",
+    "Present the margin rate fall from 22.6% to 11.5% alongside the discount trail in the renewal meeting.",
+    "Propose resetting the discount to 15.4%, framed as restoring normal terms rather than a price increase.",
+    "Flag PT-Rotary Hammer SDS (down from Rs 21,681.85 to Rs 7,421.55/month) and PH-Precision Torque Wrench (Rs 14,691.08/month, now zero) as separate range/selling issues to raise once pricing is settled.",
+    "Get sign-off from Anil Kumar and confirm the new rate in the next order confirmation."
+  ],
+  "talking_points": [
+    "Your discount has moved from 12.7% to 23.5% since October 2025 with no change in order size.",
+    "Margin rate on this account has been below normal range for 10 straight months, now at 11.5%.",
+    "Rotary Hammer SDS orders have dropped from Rs 21,681.85 to Rs 7,421.55 a month \u2014 separate from the pricing conversation."
+  ],
+  "check_before_acting": [
+    "Confirm current contract or tier terms don't already entitle Ashford to a higher discount band.",
+    "Establish whether PH-Precision Torque Wrench and CN-Drill Bit Set stopped due to Ashford's own range change, not price.",
+    "Check if a competitor or internal promotion drove the discount increase from October 2025."
+  ],
+  "restores_account_to_healthy": true,
+  "what_is_left_over": "Nothing \u2014 this restores the account.",
+  "downside_if_wrong": "Ashford could reduce volume by up to 48% before this stops paying, though this is a tolerance limit, not a forecast.",
+  "owner": "Anil Kumar, Account Manager",
+  "timing": "At next commercial review, within this quarter",
+  "how_we_will_know_it_worked": [
+    "Average discount recorded at 15.4% or lower on next month's invoices.",
+    "Margin rate back at or above 19.9% within 2-3 months.",
+    "Monthly margin recovery of \u20b921,794 visible in next quarter's account review."
+  ],
+  "review_in_months": 3
+}

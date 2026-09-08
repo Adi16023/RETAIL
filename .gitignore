@@ -14,9 +14,12 @@ scorecard.json
 # investigations are shared: the fingerprint is a content hash of the
 # committed transactions.csv rows, so a teammate's checkout computes the
 # same file names and opens every account with its verdict already there.
-# Decisions, comparisons and chats stay local — a re-run or personal.
+# Decisions are shared for the same reason: one per flagged account, keyed
+# by the same fingerprint, so the recommendation is there without a call.
+# Comparisons and chats stay local — a re-run or personal.
 .cache/*
 !.cache/investigations/
+!.cache/decisions/
 
 # Third-party datasets used to calibrate the synthetic generator (e.g. UCI
 # Online Retail II, 43 MB). Downloaded by script, never committed.

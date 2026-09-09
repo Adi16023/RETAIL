@@ -476,8 +476,13 @@ def _opened_account(catalogue: pd.DataFrame) -> str | None:
     return requested if requested in known else None
 
 
-def _book_table_html(catalogue: pd.DataFrame) -> str:
-    """A real table: the row is the hit target, no checkbox column."""
+def _book_table_html(catalogue: pd.DataFrame, link_suffix: str = "") -> str:
+    """A real table: the row is the hit target, no checkbox column.
+
+    `link_suffix` rides on every row link (e.g. `&src=<upload key>`): a row
+    click is a real navigation that may start a fresh session, and the
+    suffix is how that session finds the same file again.
+    """
     headers = "".join(
         f"<th>{escape(label)}</th>"
         for source, label in DISPLAY_COLUMNS
@@ -486,7 +491,7 @@ def _book_table_html(catalogue: pd.DataFrame) -> str:
     rows = []
     for _, row in catalogue.iterrows():
         account_id = str(row["account_id"])
-        href = f"?account={quote(account_id, safe='')}"
+        href = f"?account={quote(account_id, safe='')}{link_suffix}"
         cells = []
         for source, _label in DISPLAY_COLUMNS:
             if source not in catalogue.columns:
@@ -518,11 +523,13 @@ def render_account_book(
     catalogue: pd.DataFrame,
     *,
     trailing=None,
+    link_suffix: str = "",
 ) -> str | None:
     """Search, filter and table. Returns an account id when a row is opened.
 
     `trailing` is an optional callable rendered on the search row — used for
     the file-info control so it sits with the filters, not above the table.
+    `link_suffix` is appended to every row link (see `_book_table_html`).
     """
     options_region = _unique_values(catalogue, "region")
     options_manager = _unique_values(catalogue, "account_manager")
@@ -653,7 +660,7 @@ def render_account_book(
         opened = None
     else:
         opened = _opened_account(catalogue)
-        st.markdown(_book_table_html(page_rows), unsafe_allow_html=True)
+        st.markdown(_book_table_html(page_rows, link_suffix), unsafe_allow_html=True)
 
     _render_pagination(len(filtered), page, total_pages, start, end)
     return opened

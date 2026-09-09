@@ -28,6 +28,7 @@ No hard-coded absolute paths — everything is relative to this file or comes
 from the uploaded file object.
 """
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -539,19 +540,57 @@ def show_data_source_modal() -> None:
     if current:
         st.caption(f"Using **{current}**. Drop a different file to replace it.")
     else:
-        st.caption(
-            "Leave this empty to use the reference dataset — the official Quessathon "
-            "workbook, already extracted."
-        )
+        st.caption("Leave this empty to use the reference dataset.")
     uploaded = st.file_uploader("Use your own transaction file", type=["csv", "xlsx"])
     if uploaded is not None and st.session_state.get("upload_name") != uploaded.name:
-        st.session_state["upload_bytes"] = uploaded.getvalue()
-        st.session_state["upload_name"] = uploaded.name
+        _remember_upload(uploaded.getvalue(), uploaded.name)
         st.rerun()
     if current and st.button("Use the reference dataset instead", type="tertiary"):
-        st.session_state.pop("upload_bytes", None)
-        st.session_state.pop("upload_name", None)
+        for key in ("upload_bytes", "upload_name", "upload_key"):
+            st.session_state.pop(key, None)
         st.rerun()
+
+
+# An upload lives in session state, and a row click on a book table is a
+# real link (`?account=…`) that can start a FRESH session — which would
+# silently fall back to the reference workbook and open the wrong book
+# (seen Sept 9 with an 18-account reference and a one-account upload). So
+# the upload is also written to disk under a content hash, every row link
+# carries that hash as `src`, and a new session restores the file from it
+# before reading the account. Gitignored with the rest of .cache.
+UPLOAD_DIR = cache.CACHE_DIR.parent / "uploads"
+
+
+def _remember_upload(file_bytes: bytes, filename: str) -> None:
+    key = hashlib.sha1(file_bytes).hexdigest()[:12]
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in filename)
+    (UPLOAD_DIR / f"{key}_{safe_name}").write_bytes(file_bytes)
+    st.session_state["upload_bytes"] = file_bytes
+    st.session_state["upload_name"] = filename
+    st.session_state["upload_key"] = key
+
+
+def _restore_upload_from_link() -> None:
+    """`?src=<key>` on a fresh session: reload that upload from disk."""
+    key = st.query_params.get("src")
+    if not key:
+        return
+    del st.query_params["src"]
+    if st.session_state.get("upload_key") == key or not UPLOAD_DIR.exists():
+        return
+    safe = "".join(c for c in key if c.isalnum())
+    for path in UPLOAD_DIR.glob(f"{safe}_*"):
+        st.session_state["upload_bytes"] = path.read_bytes()
+        st.session_state["upload_name"] = path.name[len(safe) + 1:]
+        st.session_state["upload_key"] = key
+        return
+
+
+def _source_link_suffix() -> str:
+    """What a row link must carry so a fresh session opens the same file."""
+    key = st.session_state.get("upload_key")
+    return f"&src={key}" if key else ""
 
 
 # --- Data (cached: every widget interaction re-runs the whole script) ------
@@ -641,6 +680,7 @@ if "selected_account" not in st.session_state:
 
 current_page = st.session_state["home_page"]
 
+_restore_upload_from_link()
 if "upload_bytes" in st.session_state:
     using_reference = False
     try:
@@ -698,16 +738,9 @@ else:
                 on_click=_set_home_page,
                 args=(page["key"],),
             )
-        # Data source picker — hidden for now; app uses the Meridian reference
-        # file (or whatever was already uploaded). Restore with show_data_source_modal.
-        # st.divider()
-        # if st.button(
-        #     "Choose your data source",
-        #     icon=":material/folder_open:",
-        #     use_container_width=True,
-        #     key="sidebar-source",
-        # ):
-        #     show_data_source_modal()
+        # The data source picker lives on the account book only (Sept 9, at
+        # the user's request); see render_data_page. Restore here with
+        # show_data_source_modal() if a per-account entry is wanted again.
 
 fingerprint = cached_account_fingerprint(df, account_id) if account_id else None
 report = cache.load(fingerprint, account_id, model_id) if account_id else None
@@ -776,14 +809,15 @@ def render_data_page() -> None:
             page_spec["list_caption"],
             show_logo=True,
         )
-        # Data source on the book — hidden for now (same as the sidebar entry).
-        # if st.button(
-        #     "Choose your data source",
-        #     icon=":material/folder_open:",
-        #     type="tertiary",
-        #     key="book-source",
-        # ):
-        #     show_data_source_modal()
+        # Data source on the book — the one place to swap the file
+        # (re-enabled Sept 9 at the user's request; the sidebar copy is gone).
+        if st.button(
+            "Choose your data source",
+            icon=":material/folder_open:",
+            type="tertiary",
+            key="book-source",
+        ):
+            show_data_source_modal()
         book = cached_account_catalogue(df)
         remembered = st.session_state.setdefault("investigation_reports", {})
         catalogue = apply_investigation_cache(
@@ -801,6 +835,7 @@ def render_data_page() -> None:
         opened = render_account_book(
             catalogue,
             trailing=_file_info_button,
+            link_suffix=_source_link_suffix(),
         )
         if opened:
             _open_account(opened)
@@ -1095,7 +1130,7 @@ def render_cltv_page() -> None:
         del st.query_params["account"]
         _open_account(opened)
         st.rerun()
-    render_lifetime_book(rows)
+    render_lifetime_book(rows, link_suffix=_source_link_suffix())
 
 
 if current_page == "verdict":

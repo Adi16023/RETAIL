@@ -212,7 +212,7 @@ def render_lifetime_account(pack: dict) -> None:
         st.caption(breakdown.get("note", ""))
 
 
-def render_lifetime_book(rows: list[dict]) -> None:
+def render_lifetime_book(rows: list[dict], link_suffix: str = "") -> None:
     """`rows`: one dict per account with account_id, account_name, and the
     lifetime_value block. Ranked by value at risk over the shown horizon."""
     table = []
@@ -236,7 +236,7 @@ def render_lifetime_book(rows: list[dict]) -> None:
     for row in table:
         # The page rides in the link: a click is a real navigation and may
         # start a fresh session, whose default page would otherwise be Detect.
-        href = f"?account={quote(row['account_id'], safe='')}&page=cltv"
+        href = f"?account={quote(row['account_id'], safe='')}&page=cltv{link_suffix}"
         if row["scored"]:
             momentum = "—" if row["momentum"] is None else f"{row['momentum'] * 100:+.0f}%"
             values = (_money(row["baseline"]), _money(row["current"]), _money(row["at_risk"]), momentum)

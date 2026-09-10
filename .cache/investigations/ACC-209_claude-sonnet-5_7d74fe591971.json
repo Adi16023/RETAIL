@@ -1,0 +1,621 @@
+{
+  "account_id": "ACC-209",
+  "account_name": "Pemberton Retail",
+  "verdict": "insufficient_data",
+  "temporary_or_structural": "not_applicable",
+  "leak_dimensions": [],
+  "confidence": "low",
+  "defer": true,
+  "narrative": "There is not enough trading history to call this account healthy or leaking. Revenue and margin both look stable across the four to five months on file, but every statistical check flags insufficient history. Wait for more months of data before drawing a conclusion either way.",
+  "attributed_categories": [],
+  "cited_evidence": [
+    "This account has only 4 months of trading history, from April 2026 to August 2026.",
+    "Revenue moved between \u20b9162,475 and \u20b9225,418 across the five recorded months, within normal swing for so few data points.",
+    "Margin stayed steady, ranging from 28.3% to 30.2% of revenue across April to August 2026.",
+    "No category shows signs of having stopped or fully dropped off during this short window.",
+    "Only 6 orders total were placed, too few to judge order frequency or basket-size trends reliably."
+  ],
+  "recommended_actions": [
+    "Continue monitoring monthly revenue and margin for at least 6-8 more months.",
+    "Re-run this analysis once a full prior-year comparison window is available.",
+    "Check in with the account manager for qualitative context on relationship health."
+  ],
+  "data_needed_if_deferring": [
+    "At least 8-12 months of order history to establish a reliable baseline.",
+    "One full prior year of data to check for seasonal patterns.",
+    "More order volume to assess order frequency and basket-size trends."
+  ],
+  "financial_impact": {
+    "per_category": [],
+    "account_level_revenue_impact": null,
+    "margin_impact": null,
+    "total_monthly_revenue_at_risk": 0,
+    "total_historical_value_lost": 0,
+    "pct_of_baseline_monthly_revenue_at_risk": 0.0,
+    "pct_of_baseline_monthly_margin_at_risk": null,
+    "overall_severity_pct_of_baseline": 0.0
+  },
+  "prioritization": {
+    "priority": "Deferred",
+    "reason": "Evidence insufficient for a confident verdict \u2014 see data_needed_if_deferring.",
+    "churn_risk_projection": null
+  },
+  "data_sufficiency": {
+    "score": 0.39,
+    "label": "insufficient",
+    "flags": [
+      "short_history",
+      "few_orders",
+      "cannot_check_prior_year_seasonality",
+      "history_too_short_for_baseline"
+    ],
+    "history_months": 4.0,
+    "order_count": 6,
+    "category_count": 8
+  },
+  "analysis_dimensions": {
+    "revenue": true,
+    "margin": true,
+    "discount": true,
+    "tier_mix": true,
+    "category_mix": true,
+    "order_pattern": true,
+    "returns": false
+  },
+  "model_opinion": {
+    "available": true,
+    "p_flag": 0.031,
+    "p_no_flag": 0.031,
+    "p_defer": 0.938,
+    "leaning": "defer",
+    "leaning_outcome": "DEFER",
+    "decisive": true,
+    "top_drivers": [
+      {
+        "feature": "history_months",
+        "label": "months of history",
+        "value": 4.0,
+        "effect_on_leaning": 0.933,
+        "direction": "supports"
+      },
+      {
+        "feature": "rev_cv",
+        "label": "month-to-month revenue noise",
+        "value": 0.1279,
+        "effect_on_leaning": 0.286,
+        "direction": "supports"
+      },
+      {
+        "feature": "category_count",
+        "label": "categories bought",
+        "value": 8.0,
+        "effect_on_leaning": -0.038,
+        "direction": "argues against"
+      },
+      {
+        "feature": "sufficiency_score",
+        "label": "data sufficiency score",
+        "value": 0.39,
+        "effect_on_leaning": 0.005,
+        "direction": "supports"
+      }
+    ],
+    "drivers_note": null
+  },
+  "model_agreement": {
+    "agrees": true,
+    "agent_outcome": "DEFER",
+    "model_outcome": "DEFER",
+    "model_decisive": true,
+    "agent_response": "Agree: the model's 93.8% deferral probability matches the account's short 4-month history and lack of baseline data."
+  },
+  "evidence_timeline": [
+    {
+      "month": "2026-04",
+      "when": "2026-04",
+      "headline": "History begins",
+      "detail": "4.0 months of history, 6 orders across 8 categories. Data sufficiency: insufficient (score 0.39).",
+      "method": null,
+      "dimension": "history",
+      "reads_as": "context",
+      "notable": false
+    },
+    {
+      "month": "2026-04",
+      "when": "2026-04",
+      "headline": "Limits on what this history can establish",
+      "detail": "Sufficiency flags: short history, few orders, cannot check prior year seasonality, history too short for baseline.",
+      "method": null,
+      "dimension": "history",
+      "reads_as": "concern",
+      "notable": true
+    },
+    {
+      "month": null,
+      "when": "whole history",
+      "headline": "Revenue direction could not be established",
+      "detail": "History is not longer than the recent comparison window, so there is no baseline period to compare against.",
+      "method": null,
+      "dimension": "revenue",
+      "reads_as": "concern",
+      "notable": true
+    },
+    {
+      "month": null,
+      "when": "whole history",
+      "headline": "Seasonality could not be checked",
+      "detail": "Under 18 months of history, so there is no prior-year window to compare a recent dip against. A seasonal explanation can be neither confirmed nor ruled out.",
+      "method": null,
+      "dimension": "revenue",
+      "reads_as": "concern",
+      "notable": true
+    },
+    {
+      "month": null,
+      "when": "whole history",
+      "headline": "Margin, discount and tier mix could not be compared",
+      "detail": "No baseline window exists on this account, so none of these dimensions can be measured against a prior period. This is a limit of the history available, not a finding that they are unchanged.",
+      "method": null,
+      "dimension": "coverage",
+      "reads_as": "concern",
+      "notable": true
+    }
+  ],
+  "evidence": {
+    "account_id": "ACC-209",
+    "account_name": "Pemberton Retail",
+    "region": "North",
+    "account_manager": "Priya Nair",
+    "data_sufficiency": {
+      "score": 0.39,
+      "label": "insufficient",
+      "flags": [
+        "short_history",
+        "few_orders",
+        "cannot_check_prior_year_seasonality",
+        "history_too_short_for_baseline"
+      ],
+      "history_months": 4.0,
+      "order_count": 6,
+      "category_count": 8
+    },
+    "analysis_dimensions": {
+      "revenue": true,
+      "margin": true,
+      "discount": true,
+      "tier_mix": true,
+      "category_mix": true,
+      "order_pattern": true,
+      "returns": false
+    },
+    "history": {
+      "start_date": "2026-04-10",
+      "end_date": "2026-08-10",
+      "months_of_history": 4.0,
+      "order_count": 6,
+      "category_count": 8
+    },
+    "overall_revenue": {
+      "baseline_monthly_median": 204262.7,
+      "recent_monthly_rate": null,
+      "pct_change": null,
+      "monthly_revenue_coefficient_of_variation": 0.1279,
+      "change_point": null,
+      "monthly_series": {
+        "2026-04": 162474.53,
+        "2026-05": 225418.07,
+        "2026-06": 204262.7,
+        "2026-07": 216236.91,
+        "2026-08": 184087.33000000002
+      }
+    },
+    "revenue_trend": {
+      "direction": "unknown",
+      "slope_pct_per_month": null
+    },
+    "revenue_decline": {
+      "status": "insufficient_history",
+      "first_half_vs_second_half_pct_change": null,
+      "slope_pct_per_month": null,
+      "recent_vs_baseline_pct_change": null,
+      "material_thresholds": {
+        "first_half_vs_second_half_pct_change": -0.15,
+        "slope_pct_per_month": -0.015,
+        "recent_vs_baseline_pct_change": -0.25,
+        "note": "material if (halves AND slope) are met, OR the recent-vs-baseline drop is"
+      },
+      "p_value": null,
+      "significant": null
+    },
+    "seasonality": {
+      "status": "insufficient_history",
+      "dip_months": [],
+      "echo_months": []
+    },
+    "dip_episodes": [],
+    "margin": {
+      "status": "insufficient_history",
+      "margin_pct_change_pp": null,
+      "p_value": null,
+      "significant": null
+    },
+    "margin_profile": {
+      "baseline_margin_pct": 0.2907,
+      "recent_margin_pct": null,
+      "margin_pct_change_pp": null,
+      "baseline_monthly_margin": 57699.51,
+      "recent_monthly_margin": null,
+      "monthly_margin_pct_series": {
+        "2026-04": 0.2848,
+        "2026-05": 0.273,
+        "2026-06": 0.2834,
+        "2026-07": 0.289,
+        "2026-08": 0.302
+      }
+    },
+    "discount": {
+      "status": "insufficient_history",
+      "discount_pct_change_pp": null,
+      "p_value": null,
+      "significant": null
+    },
+    "tier_mix": {
+      "status": "insufficient_history",
+      "high_tier_share_change_pp": null,
+      "p_value": null,
+      "significant": null
+    },
+    "category_mix": {
+      "baseline_share": {
+        "Cleaning & Maintenance": 0.0449,
+        "Consumables": 0.1376,
+        "Diagnostic Equipment": 0.0999,
+        "Electrical Accessories": 0.1151,
+        "Fasteners & Fittings": 0.1143,
+        "Power Tools": 0.2686,
+        "Precision Hardware": 0.1603,
+        "Safety Basics": 0.0594
+      },
+      "recent_share": {},
+      "high_value_categories": [
+        "Power Tools",
+        "Precision Hardware",
+        "Consumables",
+        "Electrical Accessories",
+        "Fasteners & Fittings"
+      ],
+      "low_value_categories": [
+        "Diagnostic Equipment",
+        "Safety Basics",
+        "Cleaning & Maintenance"
+      ],
+      "baseline_months": 5,
+      "recent_months": 0
+    },
+    "category_changes": [
+      {
+        "category": "Cleaning & Maintenance",
+        "is_high_value": false,
+        "change_point_detected": false,
+        "defected": false,
+        "consecutive_months_at_zero": 0,
+        "baseline_revenue_share": 0.0
+      },
+      {
+        "category": "Consumables",
+        "is_high_value": true,
+        "change_point_detected": false,
+        "defected": false,
+        "consecutive_months_at_zero": 0,
+        "baseline_revenue_share": 0.0
+      },
+      {
+        "category": "Diagnostic Equipment",
+        "is_high_value": false,
+        "change_point_detected": false,
+        "defected": false,
+        "consecutive_months_at_zero": 0,
+        "baseline_revenue_share": 0.0
+      },
+      {
+        "category": "Electrical Accessories",
+        "is_high_value": true,
+        "change_point_detected": false,
+        "defected": false,
+        "consecutive_months_at_zero": 0,
+        "baseline_revenue_share": 0.0
+      },
+      {
+        "category": "Fasteners & Fittings",
+        "is_high_value": true,
+        "change_point_detected": false,
+        "defected": false,
+        "consecutive_months_at_zero": 0,
+        "baseline_revenue_share": 0.0
+      },
+      {
+        "category": "Power Tools",
+        "is_high_value": true,
+        "change_point_detected": false,
+        "defected": false,
+        "consecutive_months_at_zero": 0,
+        "baseline_revenue_share": 0.0
+      },
+      {
+        "category": "Precision Hardware",
+        "is_high_value": true,
+        "change_point_detected": false,
+        "defected": false,
+        "consecutive_months_at_zero": 0,
+        "baseline_revenue_share": 0.0
+      },
+      {
+        "category": "Safety Basics",
+        "is_high_value": false,
+        "change_point_detected": false,
+        "defected": false,
+        "consecutive_months_at_zero": 0,
+        "baseline_revenue_share": 0.0
+      }
+    ],
+    "product_changes": [],
+    "order_pattern": {
+      "status": "insufficient_history",
+      "order_frequency_pct_change": null,
+      "basket_width_pct_change": null,
+      "aov_pct_change": null,
+      "thresholds": {
+        "order_frequency_pct_change": 0.3,
+        "basket_width_pct_change": -0.2
+      },
+      "p_value_frequency": null,
+      "p_value_basket_width": null,
+      "significant": false
+    },
+    "order_behavior": {
+      "order_frequency_baseline_per_month": 1.2,
+      "order_frequency_recent_per_month": null,
+      "order_frequency_pct_change": null,
+      "aov_baseline": 165413.26,
+      "aov_recent": null,
+      "aov_pct_change": null,
+      "basket_width_baseline": 7.0,
+      "basket_width_recent": null,
+      "basket_width_pct_change": null
+    },
+    "data_quality": {
+      "gaps": {
+        "months_in_history": 5,
+        "months_with_no_orders": [],
+        "note": null
+      },
+      "outlier_months": [],
+      "returns": {
+        "return_lines": 0,
+        "net_return_value": 0.0,
+        "share_of_gross_revenue": 0.0
+      }
+    },
+    "significance": {
+      "level": 0.05,
+      "n_permutations": 2000,
+      "revenue": {
+        "status": "insufficient_history",
+        "statistic": null,
+        "p_value": null,
+        "significant": null,
+        "n_months": 5,
+        "recent_months": 5,
+        "statistic_halves": null,
+        "p_value_halves": null,
+        "statistic_trend": null,
+        "p_value_trend": null
+      },
+      "margin": {
+        "status": "insufficient_history",
+        "statistic": null,
+        "p_value": null,
+        "significant": null,
+        "n_months": 5,
+        "recent_months": 5,
+        "statistic_halves": null,
+        "p_value_halves": null,
+        "statistic_trend": null,
+        "p_value_trend": null
+      },
+      "discount": {
+        "status": "insufficient_history",
+        "statistic": null,
+        "p_value": null,
+        "significant": null,
+        "n_months": 5,
+        "recent_months": 5,
+        "statistic_halves": null,
+        "p_value_halves": null,
+        "statistic_trend": null,
+        "p_value_trend": null
+      },
+      "tier_mix": {
+        "status": "insufficient_history",
+        "statistic": null,
+        "p_value": null,
+        "significant": null,
+        "n_months": 5,
+        "recent_months": 5,
+        "statistic_halves": null,
+        "p_value_halves": null,
+        "statistic_trend": null,
+        "p_value_trend": null
+      },
+      "order_frequency": {
+        "status": "insufficient_history",
+        "statistic": null,
+        "p_value": null,
+        "significant": null,
+        "n_months": 5,
+        "recent_months": 5,
+        "statistic_halves": null,
+        "p_value_halves": null,
+        "statistic_trend": null,
+        "p_value_trend": null
+      },
+      "basket_width": {
+        "status": "insufficient_history",
+        "statistic": null,
+        "p_value": null,
+        "significant": null,
+        "n_months": 5,
+        "recent_months": 5,
+        "statistic_halves": null,
+        "p_value_halves": null,
+        "statistic_trend": null,
+        "p_value_trend": null
+      }
+    },
+    "_lifetime_value": {
+      "status": "insufficient_history",
+      "orders": 6,
+      "months_of_history": 4.5,
+      "reason": "needs at least 6 orders and 8 months of history to project; has 6 orders over 4.5 months"
+    },
+    "_presentation": {
+      "discount_profile": {
+        "baseline_avg_discount_pct": 0.0505,
+        "recent_avg_discount_pct": null,
+        "discount_pct_change_pp": null,
+        "monthly_avg_discount_series": {
+          "2026-04": 0.0466,
+          "2026-05": 0.0511,
+          "2026-06": 0.0528,
+          "2026-07": 0.0506,
+          "2026-08": 0.0506
+        }
+      },
+      "tier_mix_profile": {
+        "baseline_share_by_tier": {
+          "High": 0.5288,
+          "Mid": 0.2293,
+          "Low": 0.2419
+        },
+        "recent_share_by_tier": {},
+        "high_tier_share_change_pp": null,
+        "monthly_high_tier_share_series": {
+          "2026-04": 0.4805,
+          "2026-05": 0.4517,
+          "2026-06": 0.5106,
+          "2026-07": 0.5327,
+          "2026-08": 0.5783
+        }
+      },
+      "category_monthly_revenue": {
+        "Cleaning & Maintenance": {
+          "2026-04": 9593.01,
+          "2026-05": 16210.44,
+          "2026-06": 0.0,
+          "2026-07": 11393.5,
+          "2026-08": 7327.04
+        },
+        "Consumables": {
+          "2026-04": 20659.86,
+          "2026-05": 34341.46,
+          "2026-06": 40649.18,
+          "2026-07": 21806.67,
+          "2026-08": 19099.69
+        },
+        "Diagnostic Equipment": {
+          "2026-04": 20019.0,
+          "2026-05": 0.0,
+          "2026-06": 0.0,
+          "2026-07": 39506.14,
+          "2026-08": 39589.94
+        },
+        "Electrical Accessories": {
+          "2026-04": 17455.48,
+          "2026-05": 24218.04,
+          "2026-06": 36466.15,
+          "2026-07": 18768.24,
+          "2026-08": 17290.84
+        },
+        "Fasteners & Fittings": {
+          "2026-04": 23859.18,
+          "2026-05": 36196.04,
+          "2026-06": 0.0,
+          "2026-07": 30666.82,
+          "2026-08": 22700.27
+        },
+        "Power Tools": {
+          "2026-04": 36694.74,
+          "2026-05": 56229.29,
+          "2026-06": 78370.11,
+          "2026-07": 52998.9,
+          "2026-08": 42317.91
+        },
+        "Precision Hardware": {
+          "2026-04": 21362.4,
+          "2026-05": 40891.41,
+          "2026-06": 48777.26,
+          "2026-07": 27335.04,
+          "2026-08": 20734.32
+        },
+        "Safety Basics": {
+          "2026-04": 12830.86,
+          "2026-05": 17331.39,
+          "2026-06": 0.0,
+          "2026-07": 13761.6,
+          "2026-08": 15027.32
+        }
+      },
+      "account_manager_tenures": [
+        {
+          "account_manager": "Priya Nair",
+          "from_month": "2026-04"
+        }
+      ]
+    },
+    "model_opinion": {
+      "available": true,
+      "p_flag": 0.031,
+      "p_no_flag": 0.031,
+      "p_defer": 0.938,
+      "leaning": "defer",
+      "leaning_outcome": "DEFER",
+      "decisive": true,
+      "top_drivers": [
+        {
+          "feature": "history_months",
+          "label": "months of history",
+          "value": 4.0,
+          "effect_on_leaning": 0.933,
+          "direction": "supports"
+        },
+        {
+          "feature": "rev_cv",
+          "label": "month-to-month revenue noise",
+          "value": 0.1279,
+          "effect_on_leaning": 0.286,
+          "direction": "supports"
+        },
+        {
+          "feature": "category_count",
+          "label": "categories bought",
+          "value": 8.0,
+          "effect_on_leaning": -0.038,
+          "direction": "argues against"
+        },
+        {
+          "feature": "sufficiency_score",
+          "label": "data sufficiency score",
+          "value": 0.39,
+          "effect_on_leaning": 0.005,
+          "direction": "supports"
+        }
+      ],
+      "drivers_note": null
+    }
+  },
+  "_run": {
+    "choice": "Proprietary",
+    "model": "claude-sonnet-5",
+    "provider": "Anthropic"
+  }
+}

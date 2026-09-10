@@ -535,62 +535,98 @@ def show_ingestion_modal(report: dict) -> None:
 
 @st.dialog("Data source", width="small")
 def show_data_source_modal() -> None:
-    """Pick a file without a popover hanging off the sidebar."""
-    current = st.session_state.get("upload_name")
-    if current:
-        st.caption(f"Using **{current}**. Drop a different file to replace it.")
+    """Pick files without a popover hanging off the sidebar. Every upload
+    accumulates onto the reference book rather than replacing the last
+    one — a manager building up a 28-, 38-, ... account book uploads each
+    new file here in turn."""
+    uploads = st.session_state.get("uploads", [])
+    if uploads:
+        st.caption(
+            "Book is the reference 18 accounts plus the files below, in that order. "
+            "Drop another file to add it too, or remove one below."
+        )
+        for u in uploads:
+            row_name, row_remove = st.columns([5, 1], vertical_alignment="center")
+            row_name.markdown(f"**{u['name']}**")
+            if row_remove.button(":material/close:", key=f"remove_upload_{u['key']}", help=f"Remove {u['name']}"):
+                _forget_upload(u["key"])
+                st.rerun()
     else:
-        st.caption("Leave this empty to use the reference dataset.")
-    uploaded = st.file_uploader("Use your own transaction file", type=["csv", "xlsx"])
-    if uploaded is not None and st.session_state.get("upload_name") != uploaded.name:
-        _remember_upload(uploaded.getvalue(), uploaded.name)
-        st.rerun()
-    if current and st.button("Use the reference dataset instead", type="tertiary"):
-        for key in ("upload_bytes", "upload_name", "upload_key"):
-            st.session_state.pop(key, None)
-        st.rerun()
+        st.caption(
+            "Upload a file to add its accounts to the reference 18 — they'll appear "
+            "after the reference accounts, in the order the file lists them. Upload "
+            "more files later to keep adding to the book."
+        )
+    uploaded = st.file_uploader("Add a transaction file", type=["csv", "xlsx"])
+    if uploaded is not None:
+        file_bytes = uploaded.getvalue()
+        key = hashlib.sha1(file_bytes).hexdigest()[:12]
+        if not any(u["key"] == key for u in uploads):
+            _remember_upload(file_bytes, uploaded.name)
+            st.rerun()
 
 
-# An upload lives in session state, and a row click on a book table is a
-# real link (`?account=…`) that can start a FRESH session — which would
-# silently fall back to the reference workbook and open the wrong book
-# (seen Sept 9 with an 18-account reference and a one-account upload). So
-# the upload is also written to disk under a content hash, every row link
-# carries that hash as `src`, and a new session restores the file from it
-# before reading the account. Gitignored with the rest of .cache.
+# Uploads live in session state as a list of {key, name}, and a row click on
+# a book table is a real link (`?account=…`) that can start a FRESH session
+# — which would silently fall back to the reference workbook and open the
+# wrong book (seen Sept 9 with an 18-account reference and a one-account
+# upload). So every upload is also written to disk under its content hash,
+# every row link carries all the current keys as `src`, and a new session
+# restores each file from disk before reading the account. Gitignored with
+# the rest of .cache.
 UPLOAD_DIR = cache.CACHE_DIR.parent / "uploads"
+
+
+def _upload_path(key: str, filename: str) -> Path:
+    safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in filename)
+    return UPLOAD_DIR / f"{key}_{safe_name}"
 
 
 def _remember_upload(file_bytes: bytes, filename: str) -> None:
     key = hashlib.sha1(file_bytes).hexdigest()[:12]
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in filename)
-    (UPLOAD_DIR / f"{key}_{safe_name}").write_bytes(file_bytes)
-    st.session_state["upload_bytes"] = file_bytes
-    st.session_state["upload_name"] = filename
-    st.session_state["upload_key"] = key
+    _upload_path(key, filename).write_bytes(file_bytes)
+    uploads = [u for u in st.session_state.get("uploads", []) if u["key"] != key]
+    uploads.append({"key": key, "name": filename})
+    st.session_state["uploads"] = uploads
+
+
+def _forget_upload(key: str) -> None:
+    """Drop one uploaded file from the book, leaving the rest (and the
+    reference 18) in place. The file on disk is left alone — a stale
+    `?src=` link still carrying this key simply won't find it in the
+    session's upload list and will be ignored by `_restore_upload_from_link`."""
+    st.session_state["uploads"] = [
+        u for u in st.session_state.get("uploads", []) if u["key"] != key
+    ]
 
 
 def _restore_upload_from_link() -> None:
-    """`?src=<key>` on a fresh session: reload that upload from disk."""
-    key = st.query_params.get("src")
-    if not key:
+    """`?src=<key1>,<key2>,...` on a fresh session: reload those uploads
+    from disk, in the order the link lists them."""
+    raw = st.query_params.get("src")
+    if not raw:
         return
     del st.query_params["src"]
-    if st.session_state.get("upload_key") == key or not UPLOAD_DIR.exists():
+    keys = [k for k in raw.split(",") if k]
+    if not keys or not UPLOAD_DIR.exists():
         return
-    safe = "".join(c for c in key if c.isalnum())
-    for path in UPLOAD_DIR.glob(f"{safe}_*"):
-        st.session_state["upload_bytes"] = path.read_bytes()
-        st.session_state["upload_name"] = path.name[len(safe) + 1:]
-        st.session_state["upload_key"] = key
+    if {u["key"] for u in st.session_state.get("uploads", [])} == set(keys):
         return
+    restored = []
+    for key in keys:
+        safe = "".join(c for c in key if c.isalnum())
+        for path in UPLOAD_DIR.glob(f"{safe}_*"):
+            restored.append({"key": key, "name": path.name[len(safe) + 1:]})
+            break
+    if restored:
+        st.session_state["uploads"] = restored
 
 
 def _source_link_suffix() -> str:
-    """What a row link must carry so a fresh session opens the same file."""
-    key = st.session_state.get("upload_key")
-    return f"&src={key}" if key else ""
+    """What a row link must carry so a fresh session opens the same uploads."""
+    keys = [u["key"] for u in st.session_state.get("uploads", [])]
+    return f"&src={','.join(keys)}" if keys else ""
 
 
 # --- Data (cached: every widget interaction re-runs the whole script) ------
@@ -614,6 +650,34 @@ def load_uploaded_data(file_bytes: bytes, filename: str):
     buffer = io.BytesIO(file_bytes)
     buffer.name = filename
     return ingest(buffer)
+
+
+@st.cache_data(show_spinner=False)
+def load_combined_data(uploads: tuple[tuple[bytes, str], ...]):
+    """The reference 18 accounts plus every uploaded file's accounts,
+    concatenated in that order — reference first, then each upload in the
+    order it was added, so the book always reads in a stable, growing order
+    rather than any upload replacing the last one. Each file is resolved to
+    the canonical schema on its own (they may carry different columns),
+    then all the clean frames are concatenated. Where an account_id repeats
+    across files, the LATEST file listing it wins — its rows replace every
+    earlier frame's rows for that id, rather than duplicating the id under
+    disagreeing sets of rows. The returned report is the last upload's own
+    ingestion report, since the reference file's is already known."""
+    ref_df, _ = load_reference_data()
+    frames = [ref_df]
+    seen_ids = set(ref_df["account_id"])
+    last_report = None
+    for file_bytes, filename in uploads:
+        up_df, up_report = load_uploaded_data(file_bytes, filename)
+        overlap = seen_ids & set(up_df["account_id"])
+        if overlap:
+            frames = [f[~f["account_id"].isin(overlap)] for f in frames]
+        frames.append(up_df)
+        seen_ids |= set(up_df["account_id"])
+        last_report = up_report
+    combined = pd.concat(frames, ignore_index=True)
+    return combined, last_report
 
 
 @st.cache_data(show_spinner=False, hash_funcs={pd.DataFrame: cache.dataframe_identity})
@@ -681,17 +745,17 @@ if "selected_account" not in st.session_state:
 current_page = st.session_state["home_page"]
 
 _restore_upload_from_link()
-if "upload_bytes" in st.session_state:
-    using_reference = False
+uploads = st.session_state.get("uploads", [])
+if uploads:
     try:
-        df, ingestion_report = load_uploaded_data(
-            st.session_state["upload_bytes"], st.session_state["upload_name"],
+        upload_args = tuple(
+            (_upload_path(u["key"], u["name"]).read_bytes(), u["name"]) for u in uploads
         )
+        df, ingestion_report = load_combined_data(upload_args)
     except IngestionError as e:
         st.error(f"Could not process this file: {e}")
         st.stop()
 else:
-    using_reference = True
     if not MERIDIAN_TRANSACTIONS.exists():
         st.error(
             f"Reference data not found at {MERIDIAN_TRANSACTIONS}. "
@@ -943,7 +1007,7 @@ def render_score_page() -> None:
 
     key_row = (answer_key or {}).get(account_id)
 
-    if not using_reference or key_row is None:
+    if key_row is None:
         st.caption(
             "The Answer Key only covers the reference dataset's 18 accounts, so there is "
             "nothing to score this account against."

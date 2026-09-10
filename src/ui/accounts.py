@@ -69,7 +69,7 @@ _NOT_ANALYSED = ("Not analysed", "muted")
 SEARCH_COLUMNS = ("account_id", "account_name", "region", "account_manager")
 
 ROWS_PER_PAGE_OPTIONS = (10, 25, 50, 100)
-DEFAULT_ROWS_PER_PAGE = 25
+DEFAULT_ROWS_PER_PAGE = 50
 
 
 def _as_text(value) -> str:
@@ -125,7 +125,14 @@ def _lifetime_at_risk(pack: dict, horizon: str = "24") -> float | None:
 
 def _at_risk_html(row) -> str:
     """The 24-month lifetime value at risk as rupees, with what it is
-    measured in on hover; a dash for an account that cannot be projected."""
+    measured in on hover; a dash for an account that cannot be projected,
+    and a dash for one the AI hasn't looked at yet — the figure is real
+    (deterministic, not the AI's), but showing a rupee number next to
+    "Analyse with AI" reads as a verdict already reached, which it isn't.
+    Main dashboard only; the Lifetime value book shows this figure for
+    every account regardless of verdict status."""
+    if _as_text(row.get("verdict_role")) == _NOT_ANALYSED[1]:
+        return '<span title="Not yet analysed">—</span>'
     value = row.get("predicted_at_risk")
     if value is None or (isinstance(value, float) and pd.isna(value)):
         return '<span title="Not enough history to project">—</span>'
@@ -257,10 +264,18 @@ def account_row(pack: dict) -> dict:
 
 
 def build_account_catalogue(df: pd.DataFrame) -> pd.DataFrame:
-    """One row per account in `df`, from the same packs the dashboard reads."""
+    """One row per account in `df`, from the same packs the dashboard reads.
+
+    Row order follows `df`'s own row order (first appearance), not an
+    alphabetical account_id sort: the reference file lists ACC-101..118 in
+    that order already, and app.py's `load_combined_data` concatenates the
+    reference book with each upload in the order it was added — so this
+    naturally lists the reference accounts first, then each upload's
+    accounts in upload order, with each file's own account order preserved
+    inside it. `Series.unique()` (unlike `sorted()`) keeps that order."""
     rows = [
         account_row(build_evidence_pack(df, account_id))
-        for account_id in sorted(df["account_id"].unique())
+        for account_id in df["account_id"].unique()
     ]
     return pd.DataFrame(rows)
 

@@ -242,7 +242,10 @@ def test_book_table_shows_identity_signal_verdict_and_confidences_only(catalogue
     """The book shows identity, the revenue signal, the AI's call and the
     two confidences — nothing else. The verdict column reads the cached
     report, under the "Revenue leakage" header: Detected / Not detected /
-    Deferred / Not analysed."""
+    Deferred / Not analysed. An un-analysed row hides the predicted-at-risk
+    figure too (a rupee number next to an unresolved call reads as a
+    verdict already reached), even though the figure is real and
+    computable."""
     assert [label for _, label in DISPLAY_COLUMNS] == [
         "Account", "Name", "Region", "Revenue", "Revenue leakage", "Predicted revenue at risk",
     ]
@@ -258,6 +261,12 @@ def test_book_table_shows_identity_signal_verdict_and_confidences_only(catalogue
     assert deferred.loc[0, "verdict_label"] == "Deferred"
     html = _book_table_html(framed)
     assert "<th>Revenue leakage</th>" in html and ">Detected<" in html and "Not analysed" in html
+    # ACC-103 (un-analysed) shows a dash for predicted-at-risk even though
+    # it has a real, computable figure; ACC-101/102 (analysed) still show theirs.
+    rows = html.split("<tr>")
+    acc_103_row = next(r for r in rows if "ACC-103" in r)
+    assert "Not analysed" in acc_103_row and "Not yet analysed" in acc_103_row
+    assert "₹" not in acc_103_row.split("Not analysed", 1)[1]
     assert "Months" not in html and "Order shape" not in html and "<th>Manager</th>" not in html
     assert "High" in _agent_bar_html("High")
     assert "99%" in _percent_bar_html("99%")
